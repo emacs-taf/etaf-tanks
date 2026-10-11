@@ -88,9 +88,10 @@ untouched. No automatic save occurs on close.
 Auto follows the opening frame; every instance can switch independently.
 The graphical arena separates immutable terrain from dynamic tank and shell
 artwork. Small retained image regions project only the objects intersecting
-them, so movement does not decode or repaint the entire map. They use ETAF UI's
-public image grid and standard text rows; tracks, hulls, barrels, projectiles
-and impacts remain derived from native state. Terminals use text cells as a
+them, so movement does not decode or repaint the entire map. Decorative regions
+use ETAF's public image Hosts and standard text rows, without per-region grid
+interaction state. Tracks, hulls, barrels, projectiles and impacts remain
+derived from native state. Terminals use text cells as a
 fallback.
 
 The graphical arena has twenty text rows and an aspect-correct character width

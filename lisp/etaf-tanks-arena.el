@@ -73,9 +73,12 @@ This is presentation culling, never collision or native-world simulation."
   "Return a local display region in character SPAN, containing nearby sprites."
   (let* ((scale (/ 672.0 (plist-get metrics :columns)))
          (region (list (* (car span) scale) (* row (/ 416.0 20)) (* (cadr span) scale) (/ 416.0 20)))
-         (entities (cl-remove-if-not (lambda (item) (etaf-tanks--visible-in item 20 region)) (plist-get world :entities)))
-         (shells (cl-remove-if-not (lambda (item) (etaf-tanks--visible-in item 4 region)) (plist-get world :shells)))
-         (effects (cl-remove-if-not (lambda (item) (etaf-tanks--visible-in item 9 region)) (plist-get world :effects)))
+         (entities (cl-loop for item in (plist-get world :entities)
+                            when (etaf-tanks--visible-in item 20 region) collect item))
+         (shells (cl-loop for item in (plist-get world :shells)
+                          when (etaf-tanks--visible-in item 4 region) collect item))
+         (effects (cl-loop for item in (plist-get world :effects)
+                           when (etaf-tanks--visible-in item 9 region) collect item))
          (base-key (list palette region (plist-get world :terrain)))
          (key (list base-key entities shells effects)))
     (or (gethash key frame-cache)
@@ -113,11 +116,11 @@ This is presentation culling, never collision or native-world simulation."
     :tab-index 0 :role 'region :aria-label "战场：WASD 驾驶，空格开火"
     :region '(:id tanks-field :label "战场" :key "b" :enter tanks-board)
     (row :if (plist-get metrics :graphic) :ref 'tanks-canvas
-      (etaf-tile-grid :for (span spans) :key (car span)
-        :rows 20 :columns 1 :cell-width (cadr span)
-        :cell-image (lambda (r _c) (etaf-tanks--arena-patch terrain-cache frame-cache
-                                                        (etaf-value world) (etaf-value palette) metrics r span))
-        :cell-label (lambda (_r _c) "战场图像")))
+      (column :for (span spans) :key (car span)
+        (image :for (line (number-sequence 0 19)) :key line
+          :columns (cadr span) :rows 1
+          :src (etaf-tanks--arena-patch terrain-cache frame-cache
+                                      (etaf-value world) (etaf-value palette) metrics line span))))
     (etaf-tile-grid :if (not (plist-get metrics :graphic)) :rows 13 :columns 21 :cell-width 2
       :cell-text (lambda (r c) (cadr (etaf-tanks--cell (etaf-value world) r c)))
       :cell-color (lambda (r c)
