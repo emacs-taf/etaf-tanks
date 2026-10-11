@@ -301,7 +301,8 @@ func command(operation: String, args: Dictionary) -> String:
 			if paused:
 				return "请先开始或继续战斗"
 			if player.cooldown > 0:
-				return "主炮正在装填"
+				# Repeated input during reload is an accepted no-op, not an error.
+				return ""
 			_shoot(player)
 			return ""
 		_:

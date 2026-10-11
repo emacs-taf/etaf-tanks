@@ -3,6 +3,7 @@
   "load_path": [".", "../../etaf-gamekit", "../../etaf-ui", "../../etaf", "../../ebox", "../../ecss"],
   "support": [],
   "cases": [
+    {"name": "etaf-tanks-drive-and-fire-accept-simultaneous-input", "file": "tests/etaf-tanks-tests.el", "purpose": "A shot is not lost behind a drive command, and repeated input cannot bypass native reload."},
     {"name": "etaf-tanks-world-runs-without-input-and-pauses-atomically", "file": "tests/etaf-tanks-tests.el", "purpose": "Physics and enemy AI advance independently of commands and freeze while paused."},
     {"name": "etaf-tanks-physics-stops-overlapping-armour", "file": "tests/etaf-tanks-tests.el", "purpose": "Swept tank collisions prevent the player from driving through another tank."},
     {"name": "etaf-tanks-invalid-orders-preserve-paused-world", "file": "tests/etaf-tanks-tests.el", "purpose": "Invalid coordinates, directions and snapshot arguments preserve accepted state."},

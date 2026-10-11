@@ -110,6 +110,24 @@
             (should (= 3 (plist-get state :enemies)))))
       (etaf-tanks-close session))))
 
+(ert-deftest etaf-tanks-drive-and-fire-accept-simultaneous-input ()
+  "Driving does not consume a following shot; held fire respects native reload."
+  (let ((session (etaf-tanks-test--start)))
+    (unwind-protect
+        (let ((runtime (etaf-runtime-for-buffer (etaf-gamekit-buffer session))))
+          (etaf-tanks-test--act session "pause")
+          (etaf-dispatch-event runtime 'tanks-drive-e 'press)
+          ;; No process wait between controls: the cannon remains usable while
+          ;; an unrelated drive command is awaiting its acknowledgement.
+          (dotimes (_ 3) (etaf-dispatch-event runtime 'tanks-fire 'press))
+          (etaf-tanks-test--wait session
+            (lambda () (> (plist-get (etaf-tanks-test--tank session) :px) 3.5)))
+          (let ((shots (plist-get (etaf-tanks-test--state session) :shots))
+                (failure (etaf-gamekit-last-error session)))
+            (should (= shots 1))
+            (should-not failure)))
+      (etaf-tanks-close session))))
+
 (ert-deftest etaf-tanks-native-controls-can-win-and-restart ()
   "Rendered controls aim and fire against autonomous enemies through victory."
   (let ((session (etaf-tanks-test--start)))

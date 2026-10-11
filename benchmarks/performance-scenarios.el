@@ -80,22 +80,38 @@ This observes buffer output without depending on how the arena partitions it."
   "Measure real command-loop input during an autonomous live battle.
 Driving uses fresh worlds for a clear departure lane. Aiming and loaded
 shots use a continuous battle; a terminal battle is renewed through the
-public restart/start actions in readiness, never inside the measured input."
+public restart/start actions in readiness, never inside the measured input.
+Combined driving/firing renews its clear corridor after four live seconds."
   (unless (and (display-graphic-p) (image-type-available-p 'svg))
     (error "Native-input workloads require a graphical SVG display"))
   (let* ((session (etaf-tanks-open))
          (runtime (etaf-runtime-for-buffer (etaf-gamekit-buffer session)))
-         (battle 1) expected before-image before-position key fitted)
+         (battle 1) expected expected-shots before-image before-position key fitted
+         paint-observer paint-installed painted-at painted-position painted-images paint-gaps)
     (cl-labels
         ((state () (etaf-gamekit-view session :player))
          (canvas () (etaf-tanks-benchmark--painted-images runtime (etaf-gamekit-buffer session)))
-         (position () (let ((tank (car (plist-get (etaf-gamekit-view session :world) :entities))))
-                        (cons (plist-get tank :px) (plist-get tank :py)))))
+         (position () (let ((tank (cl-find "player" (plist-get (etaf-gamekit-view session :world) :entities)
+                                          :key (lambda (entity) (plist-get entity :id)) :test #'equal)))
+                        (cons (plist-get tank :px) (plist-get tank :py))))
+         (redrawing (_window)
+           (if (and (eq t (plist-get (state) :moving))
+                    (not (eq t (plist-get (state) :paused))))
+               (let ((point (position)) (images (canvas)) (now (float-time)))
+                 (unless (or (equal point painted-position) (equal images painted-images))
+                   (when painted-at (push (* 1000 (- now painted-at)) paint-gaps))
+                   (setq painted-at now painted-position point painted-images images)))
+             (setq painted-at nil painted-position nil painted-images nil))))
+      (setq paint-observer #'redrawing)
       (list
        :buffer (etaf-gamekit-buffer session)
        :environment (lambda () (list :input "Emacs command loop" :simulation "live 60 Hz Godot"
                                     :completion "committed canvas change plus driver redisplay"
-                                    :renewal (if (eq operation 'drive) "fresh departure lane" "restart after terminal battle")))
+                                    :renewal (pcase operation ('drive "fresh departure lane")
+                                               ('drive-fire "four-second continuous live corridor")
+                                               (_ "restart after terminal battle"))
+                                    :paint-observer (if (eq operation 'drive-fire)
+                                                        "before redisplay during player motion; includes harness overhead" "none")))
        :ready
        (lambda ()
          (when (memq (etaf-gamekit-status session) '(failed closed))
@@ -103,17 +119,28 @@ public restart/start actions in readiness, never inside the measured input."
          (unless fitted (etaf-refit runtime (selected-window)) (setq fitted t))
          (when (and (eq (etaf-gamekit-status session) 'ready) (etaf-host-ref-size runtime 'tanks-board))
            (cond
-            ((or (eq t (plist-get (state) :won)) (eq t (plist-get (state) :lost)))
+            ((or (eq t (plist-get (state) :won)) (eq t (plist-get (state) :lost))
+                 (and (eq operation 'drive-fire) (>= (plist-get (state) :seconds) 4)))
              (cl-incf battle) (etaf-gamekit-action session "restart") nil)
             ((eq t (plist-get (state) :paused)) (etaf-gamekit-action session "pause") nil)
+            ((eq operation 'drive-fire)
+             (and (eq t (plist-get (state) :can_fire)) (not (eq t (plist-get (state) :moving)))))
             ((eq operation 'fire) (eq t (plist-get (state) :can_fire)))
             (t t))))
-       :prepare (lambda () (etaf-focus runtime 'tanks-board))
+       :prepare (lambda ()
+                  (etaf-focus runtime 'tanks-board)
+                  (when (and (eq operation 'drive-fire) (not paint-installed))
+                    (with-current-buffer (etaf-gamekit-buffer session)
+                      (add-hook 'pre-redisplay-functions paint-observer nil t))
+                    (setq paint-installed t)))
        :invoke
        (lambda (_index)
          (setq before-image (canvas) before-position (position))
          (pcase operation
            ('drive (setq key "d" expected (car before-position)))
+           ('drive-fire (setq expected (car before-position)
+                              expected-shots (1+ (plist-get (state) :shots))
+                              key (if (> expected 3.75) "a SPC" "d SPC")))
            ('aim (setq expected (if (equal (plist-get (state) :facing) "n") "e" "n")
                        key (if (equal expected "n") "W" "D")))
            ('fire (setq key "SPC" expected (1+ (plist-get (state) :shots)))))
@@ -124,22 +151,35 @@ public restart/start actions in readiness, never inside the measured input."
               (not (equal before-image (canvas)))
               (pcase operation
                 ('drive (> (car (position)) expected))
+                ('drive-fire (and (= expected-shots (plist-get (state) :shots))
+                                  (if (string-prefix-p "d" key) (> (car (position)) expected)
+                                    (< (car (position)) expected))))
                 ('aim (equal expected (plist-get (state) :facing)))
                 ('fire (= expected (plist-get (state) :shots))))))
-       :verify (lambda () (and (not (etaf-gamekit-last-error session))
-                               (not (eq t (plist-get (state) :paused)))
-                               (etaf-host-ref-size runtime 'tanks-board) t))
+       :verify (lambda ()
+                 (if (and (eq operation 'drive-fire) (>= (plist-get (state) :shots) 2)
+                          (null paint-gaps))
+                     "No continuous redraw evidence"
+                   (and (not (etaf-gamekit-last-error session))
+                        (not (eq t (plist-get (state) :paused)))
+                        (etaf-host-ref-size runtime 'tanks-board) t)))
        :outcome (lambda () (list :key key :battle battle :position (vector (car (position)) (cdr (position)))
                                 :shots (plist-get (state) :shots) :seconds (plist-get (state) :seconds)
-                                :health (plist-get (state) :health)))
-       :cleanup (lambda () (etaf-tanks-close session))))))
+                                :health (plist-get (state) :health)
+                                :moving-redraw-gaps-ms (vconcat (reverse paint-gaps))))
+       :cleanup (lambda ()
+                  (when (buffer-live-p (etaf-gamekit-buffer session))
+                    (with-current-buffer (etaf-gamekit-buffer session)
+                      (remove-hook 'pre-redisplay-functions paint-observer t)))
+                  (etaf-tanks-close session))))))
 
 (dolist (case '((drive fresh "Drive key to the first visibly moved tank in a live arena")
                 (aim series "Repeated aiming keys while enemies and shells keep moving")
-                (fire series "Repeated loaded shots through Space and visible projectiles")))
+                (fire series "Repeated loaded shots through Space and visible projectiles")
+                (drive-fire series "Continuous driving, alternating turns and simultaneous fire")))
   (let ((operation (car case)))
     (taf-benchmark-register (format "etaf-tanks.keys.%s" operation)
-      :version 1 :modes '(gui) :isolation (cadr case) :impact 'subtree
+      :version 3 :modes '(gui) :isolation (cadr case) :impact 'subtree
       :budget-ms 50 :description (caddr case)
       :setup (lambda (_mode) (etaf-tanks-benchmark--keys operation)))))
 

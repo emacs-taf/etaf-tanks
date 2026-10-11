@@ -41,8 +41,9 @@ A player shell destroys one enemy tank; an enemy shell deals 20 damage. Walls
 block both traffic and shells, and tanks cannot overlap. All three enemy tanks
 must be destroyed to win; zero armour is defeat. There is no friendly fire.
 The player cannon reloads in 0.28 seconds, enemy cannons in 1.6 seconds. Holding
-Space submits only loaded shots; cooldown rejections are not hidden for direct
-GameKit callers.
+Space fires as the cannon becomes available. Driving and firing can be sent
+together without losing the shot. The native kernel accepts repeated fire
+during reload as a no-op; it never shortens the reload or creates extra shells.
 
 Each directional press gives one nearby destination. Key repeat is coalesced
 to the current segment and at most one next cell instead of accumulating an
@@ -69,9 +70,10 @@ continues independently of the rejected input. Rejections are available through
 `etaf-gamekit-last-error`. A transport failure requires closing that instance
 and starting a new one before loading a snapshot.
 
-Wait for `etaf-gamekit-status` to report `ready` before submitting commands.
-The opening example above returns the instance immediately; it does not block
-Emacs waiting for the external engine. Commands acknowledge asynchronously.
+Wait for `etaf-gamekit-status` to report `ready` before the first command.
+Subsequent inputs may overlap under GameKit's bounded outstanding-request
+contract. The opening example returns the instance immediately; it does not
+block Emacs waiting for the external engine. Commands acknowledge asynchronously.
 
 Snapshots are opaque application files, atomically published after serialization.
 They retain tank positions and headings, armour, reload timers, kills, shots,
@@ -113,7 +115,20 @@ Aiming and loaded shots use continuous live battles with autonomous enemies;
 terminal battles restart during readiness, and firing waits for the normal
 reload before timing Space. Outcomes record the battle number, position,
 shots, elapsed game time and armour. Restart and cooldown time are not claimed
-as firing latency. Separate theme, pause and resize workloads remain available.
+as firing latency.
+
+`etaf-tanks.keys.drive-fire` alternates direction and fires in the same command
+loop while enemies and shells keep running. It renews the clear corridor after
+four live seconds, outside the measured gesture. Emacs' `pre-redisplay-functions`
+records `moving-redraw-gaps-ms`: cumulative intervals between changed player
+positions and image displays offered to redisplay during each moving segment,
+including harness overhead. These are redraw opportunities, not completed
+screen-presentation timestamps. A stationary interval is not counted as a
+missed moving frame. Use the last outcome of each series to avoid counting
+cumulative data twice. Input latency and redraw cadence are separate checks;
+neither the requested physics rate nor a fast first response proves smooth
+continued motion. Actual presentation requires the separate GUI capture gate.
+Separate theme, pause and resize workloads remain available.
 
 Background GUI results do not certify foreground operating-system input
 latency. Screenshots and line-height assertions are separate from timings;

@@ -61,7 +61,7 @@
 
 (defun etaf-tanks--fire (session)
   "Fire when the latest acknowledged observation reports a loaded cannon."
-  (when (and (eq (etaf-gamekit-status session) 'ready)
+  (when (and (memq (etaf-gamekit-status session) '(ready busy))
              (eq t (plist-get (plist-get (etaf-gamekit-observation session) :player) :can_fire)))
     (etaf-tanks--send session "fire")))
 
