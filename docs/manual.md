@@ -20,8 +20,9 @@ entry. The [entry Commentary](../etaf-tanks.el) documents the supported Lisp API
 
 The arena starts paused so you can inspect it before launching. After `P`,
 enemies and shells move without further input. The native simulation runs at
-60 physics ticks per second; GameKit publishes changed observations at up to
-20 Hz. These are different clocks, not a per-command turn system.
+60 physics ticks per second; the project requests changed observations at up
+to 60 Hz through GameKit's `observation_hz` setting. Physics, state publication
+and actual display refresh are different clocks, not a per-command turn system.
 
 | Input | Action |
 | --- | --- |
