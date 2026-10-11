@@ -78,15 +78,15 @@ This observes buffer output without depending on how the arena partitions it."
 
 (defun etaf-tanks-benchmark--keys (operation)
   "Measure real command-loop input during an autonomous live battle.
-Driving uses fresh worlds for a clear departure lane. Aiming and loaded
-shots use a continuous battle; a terminal battle is renewed through the
-public restart/start actions in readiness, never inside the measured input.
-Combined driving/firing renews its clear corridor after four live seconds."
+Driving uses fresh worlds for a clear departure lane. Loaded shots fight
+complete battles, preparing aim at aligned enemies outside the measured input.
+Combined driving/firing renews its corridor after four live seconds. Terminal
+battles restart through public actions in readiness."
   (unless (and (display-graphic-p) (image-type-available-p 'svg))
     (error "Native-input workloads require a graphical SVG display"))
   (let* ((session (etaf-tanks-open))
          (runtime (etaf-runtime-for-buffer (etaf-gamekit-buffer session)))
-         (battle 1) expected expected-shots before-image before-position key fitted
+         (battle 1) (victories 0) (defeats 0) expected expected-shots before-image before-position key fitted
          paint-observer paint-installed painted-at painted-position painted-images paint-gaps)
     (cl-labels
         ((state () (etaf-gamekit-view session :player))
@@ -94,6 +94,18 @@ Combined driving/firing renews its clear corridor after four live seconds."
          (position () (let ((tank (cl-find "player" (plist-get (etaf-gamekit-view session :world) :entities)
                                           :key (lambda (entity) (plist-get entity :id)) :test #'equal)))
                         (cons (plist-get tank :px) (plist-get tank :py))))
+         (target-direction ()
+           (let ((point (position)) direction distance)
+             (dolist (enemy (plist-get (etaf-gamekit-view session :world) :entities))
+               (when (equal (plist-get enemy :kind) "enemy")
+                 (let* ((dx (- (plist-get enemy :px) (car point)))
+                        (dy (- (plist-get enemy :py) (cdr point)))
+                        (candidate (cond ((< (abs dx) 0.3) (if (< dy 0) "n" "s"))
+                                         ((< (abs dy) 0.3) (if (< dx 0) "w" "e"))))
+                        (range (+ (abs dx) (abs dy))))
+                   (when (and candidate (or (null distance) (< range distance)))
+                     (setq direction candidate distance range)))))
+             direction))
          (redrawing (_window)
            (let ((moving (eq t (plist-get (state) :moving)))
                  (paused (eq t (plist-get (state) :paused))))
@@ -113,7 +125,8 @@ Combined driving/firing renews its clear corridor after four live seconds."
                                     :completion "committed canvas change plus driver redisplay"
                                     :renewal (pcase operation ('drive "fresh departure lane")
                                                ('drive-fire "four-second continuous live corridor")
-                                               (_ "restart after terminal battle"))
+                                               (_ "complete battles; restart after terminal state"))
+                                    :fire-preparation "aim at aligned raiders; wait for native reload"
                                     :paint-observer (if (eq operation 'drive-fire)
                                                         "before redisplay during player motion; includes harness overhead" "none")))
        :ready
@@ -121,7 +134,9 @@ Combined driving/firing renews its clear corridor after four live seconds."
          (when (memq (etaf-gamekit-status session) '(failed closed))
            (error "Battle fixture failed: %s" (etaf-gamekit-last-error session)))
          (unless fitted (etaf-refit runtime (selected-window)) (setq fitted t))
-         (when (and (eq (etaf-gamekit-status session) 'ready) (etaf-host-ref-size runtime 'tanks-board))
+         (when (and (eq (etaf-gamekit-status session) 'ready)
+                    (etaf-host-ref-size runtime 'tanks-board)
+                    (equal (state) (plist-get (etaf-gamekit-observation session) :player)))
            ;; The final position can be drawn one tick before :moving clears.
            ;; If clearing it needs no repaint, end the already-drawn segment
            ;; here; otherwise keep it until its final frame is actually offered.
@@ -132,11 +147,23 @@ Combined driving/firing renews its clear corridor after four live seconds."
            (cond
             ((or (eq t (plist-get (state) :won)) (eq t (plist-get (state) :lost))
                  (and (eq operation 'drive-fire) (>= (plist-get (state) :seconds) 4)))
+             (when (eq t (plist-get (state) :won)) (cl-incf victories))
+             (when (eq t (plist-get (state) :lost)) (cl-incf defeats))
              (cl-incf battle) (etaf-gamekit-action session "restart") nil)
             ((eq t (plist-get (state) :paused)) (etaf-gamekit-action session "pause") nil)
             ((eq operation 'drive-fire)
              (and (eq t (plist-get (state) :can_fire)) (not (eq t (plist-get (state) :moving)))))
-            ((eq operation 'fire) (eq t (plist-get (state) :can_fire)))
+            ((eq operation 'fire)
+             (when (and (eq t (plist-get (state) :can_fire))
+                        ;; Let a possible winning projectile resolve before
+                        ;; admitting another shot.  Nothing freezes the world.
+                        (not (and (= 1 (plist-get (state) :enemies))
+                                  (cl-some (lambda (shell) (equal (plist-get shell :owner) "player"))
+                                           (plist-get (plist-get (etaf-gamekit-observation session) :world) :shells)))))
+               (let ((direction (target-direction)))
+                 (if (and direction (not (equal direction (plist-get (state) :facing))))
+                     (progn (etaf-gamekit-action session "aim" (list :direction direction)) nil)
+                   t))))
             (t t))))
        :prepare (lambda ()
                   (etaf-focus runtime 'tanks-board)
@@ -158,6 +185,8 @@ Combined driving/firing renews its clear corridor after four live seconds."
          (execute-kbd-macro (kbd key)))
        :settled
        (lambda ()
+         (when-let* ((failure (etaf-gamekit-last-error session)))
+           (error "Native input rejected: %s" failure))
          (and (eq (etaf-gamekit-status session) 'ready)
               (not (equal before-image (canvas)))
               (pcase operation
@@ -172,11 +201,13 @@ Combined driving/firing renews its clear corridor after four live seconds."
                           (null paint-gaps))
                      "No continuous redraw evidence"
                    (and (not (etaf-gamekit-last-error session))
-                        (not (eq t (plist-get (state) :paused)))
+                        (or (not (eq t (plist-get (state) :paused)))
+                            (eq t (plist-get (state) :won)))
                         (etaf-host-ref-size runtime 'tanks-board) t)))
-       :outcome (lambda () (list :key key :battle battle :position (vector (car (position)) (cdr (position)))
+       :outcome (lambda () (list :key key :battle battle :victories victories :defeats defeats
+                                :position (vector (car (position)) (cdr (position)))
                                 :shots (plist-get (state) :shots) :seconds (plist-get (state) :seconds)
-                                :health (plist-get (state) :health)
+                                :health (plist-get (state) :health) :won (plist-get (state) :won)
                                 :moving-redraw-gaps-ms (vconcat (reverse paint-gaps))))
        :cleanup (lambda ()
                   (when (buffer-live-p (etaf-gamekit-buffer session))
@@ -190,7 +221,7 @@ Combined driving/firing renews its clear corridor after four live seconds."
                 (drive-fire series "Continuous driving, alternating turns and simultaneous fire")))
   (let ((operation (car case)))
     (taf-benchmark-register (format "etaf-tanks.keys.%s" operation)
-      :version 3 :modes '(gui) :isolation (cadr case) :impact 'subtree
+      :version 4 :modes '(gui) :isolation (cadr case) :impact 'subtree
       :budget-ms 50 :description (caddr case)
       :setup (lambda (_mode) (etaf-tanks-benchmark--keys operation)))))
 

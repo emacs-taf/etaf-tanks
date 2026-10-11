@@ -111,9 +111,17 @@ Use the enclosing workspace's performance driver with this application's
 native Emacs command-loop input, asynchronous native response, committed
 canvas changes and the driver's final redisplay. Driving measures the first
 visible movement in a fresh live arena, not completion of the travel animation.
-Aiming and loaded shots use continuous live battles with autonomous enemies;
-terminal battles restart during readiness, and firing waits for the normal
-reload before timing Space. Outcomes record the battle number, position,
+Aiming and loaded shots use continuous live battles with autonomous enemies.
+The firing fixture aims at aligned raiders during readiness and waits for the
+normal reload before timing Space; it plays through victory and restarts a
+terminal battle rather than repeatedly shooting one empty direction until
+killed. Preparation aiming is not included in the separate Space latency. A projectile
+that could end the match is allowed to resolve before admitting another shot;
+physics and enemies keep running. Readiness also waits for the displayed player
+summary to match the latest accepted state. A winning shot is a valid completion,
+recorded in the outcome together with cumulative victories and defeats. Native input
+rejections fail promptly with their actual reason rather than waiting for a
+visual change that cannot occur. Outcomes record the battle number, position,
 shots, elapsed game time and armour. Restart and cooldown time are not claimed
 as firing latency.
 
