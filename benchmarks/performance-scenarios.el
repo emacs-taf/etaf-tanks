@@ -61,6 +61,21 @@
       :version 1 :modes '(batch gui) :isolation 'series :impact 'subtree
       :budget-ms (cadr case) :description (caddr case)
       :setup (lambda (mode) (etaf-tanks-benchmark--fixture mode operation)))))
+(defun etaf-tanks-benchmark--painted-images (runtime buffer)
+  "Read the actual published image displays inside the battlefield.
+This observes buffer output without depending on how the arena partitions it."
+  (when-let* ((bounds (etaf-host-ref-bounds runtime 'tanks-board)))
+    (with-current-buffer buffer
+      (let ((position (car bounds)) (end (cdr bounds)) images)
+        (while (< position end)
+          (let* ((display (get-text-property position 'display))
+                 (image (cond ((eq (car-safe display) 'image) display)
+                              ((listp display)
+                               (cl-find-if (lambda (part) (eq (car-safe part) 'image)) display)))))
+            (when image (push image images)))
+          (setq position (next-single-property-change position 'display nil end)))
+        (nreverse images)))))
+
 (defun etaf-tanks-benchmark--keys (operation)
   "Measure real command-loop input during an autonomous live battle.
 Driving uses fresh worlds for a clear departure lane. Aiming and loaded
@@ -73,7 +88,7 @@ public restart/start actions in readiness, never inside the measured input."
          (battle 1) expected before-image before-position key fitted)
     (cl-labels
         ((state () (etaf-gamekit-view session :player))
-         (canvas () (plist-get (etaf-runtime-host-props-for runtime 'tanks-canvas) :src))
+         (canvas () (etaf-tanks-benchmark--painted-images runtime (etaf-gamekit-buffer session)))
          (position () (let ((tank (car (plist-get (etaf-gamekit-view session :world) :entities))))
                         (cons (plist-get tank :px) (plist-get tank :py)))))
       (list

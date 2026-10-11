@@ -1,30 +1,40 @@
 ;;; -*- lexical-binding: t; -*-
-;;; etaf-tanks-arena.el --- Vector projection of the authoritative battlefield
+;;; etaf-tanks-arena.el --- Retained local artwork for the native battlefield
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;;; Code:
 (require 'etaf-ui)
 (require 'etaf-tanks-model)
 
 (defun etaf-tanks--metrics ()
-  "Choose one fixed battlefield size for this display, never on resize."
+  "Choose fixed battlefield metrics and two equal image columns."
   (if (and (display-graphic-p) (image-type-available-p 'svg))
-      (list :rows 20 :columns (round (/ (* 20.0 (frame-char-height) 21)
-                                       (* 13 (frame-char-width)))) :graphic t)
+      (let ((columns (* 2 (round (/ (* 20.0 (frame-char-height) 21)
+                                     (* 26 (frame-char-width)))))))
+        (list :rows 20 :columns columns :graphic t
+              :pixel-width (* columns (frame-char-width)) :line-height (frame-char-height)))
     '(:rows 13 :columns 42 :graphic nil)))
 
-(defun etaf-tanks--terrain-art (terrain palette)
-  "Draw TERRAIN in PALETTE. Godot alone determines which tiles collide."
-  (let ((floor (plist-get palette :tank-floor)) (grid (plist-get palette :tank-grid))
-        (wall (plist-get palette :tank-wall)) (top (plist-get palette :tank-wall-top))
-        (shadow (plist-get palette :tank-shadow)) parts)
+(defun etaf-tanks--terrain-art (terrain palette region)
+  "Draw only the static TERRAIN intersecting REGION, in native world units."
+  (let* ((left (nth 0 region)) (top-y (nth 1 region))
+         (right (+ left (nth 2 region))) (bottom (+ top-y (nth 3 region)))
+         (floor (plist-get palette :tank-floor)) (grid (plist-get palette :tank-grid))
+         (wall (plist-get palette :tank-wall)) (top (plist-get palette :tank-wall-top))
+         (shadow (plist-get palette :tank-shadow)) parts)
     (push (format "<rect width='672' height='416' rx='6' fill='%s'/>" floor) parts)
     (push (format "<g fill='none' stroke='%s' stroke-width='.6' opacity='.50'>" grid) parts)
-    (dotimes (r 14) (push (format "<path d='M0 %d H672'/>" (* r 32)) parts))
-    (dotimes (c 22) (push (format "<path d='M%d 0 V416'/>" (* c 32)) parts))
+    (dotimes (r 14)
+      (when (<= (- top-y 1) (* r 32) (+ bottom 1))
+        (push (format "<path d='M%.2f %d H%.2f'/>" left (* r 32) right) parts)))
+    (dotimes (c 22)
+      (when (<= (- left 1) (* c 32) (+ right 1))
+        (push (format "<path d='M%d %.2f V%.2f'/>" (* c 32) top-y bottom) parts)))
     (push "</g>" parts)
-    (cl-loop for line in terrain for row from 0 do
+    (cl-loop for line in terrain for row from 0
+             when (and (< (* row 32) bottom) (> (* (1+ row) 32) top-y)) do
              (dotimes (column 21)
-               (when (= (aref line column) ?#)
+               (when (and (= (aref line column) ?#)
+                          (< (* column 32) right) (> (* (1+ column) 32) left))
                  (push (format "<g transform='translate(%d,%d)'><rect x='1' y='2' width='30' height='30' rx='3' fill='%s'/><rect x='1' y='1' width='30' height='27' rx='3' fill='%s'/><path d='M5 5 H27 M5 5 V24' fill='none' stroke='%s' stroke-width='1' opacity='.75'/><path d='M4 16 H28' fill='none' stroke='%s' stroke-width='.7' opacity='.4'/></g>"
                                (* column 32) (* row 32) shadow wall top shadow) parts))))
     (apply #'concat (nreverse parts))))
@@ -52,37 +62,56 @@
          (format "<circle cy='-1' r='1.4' fill='%s'/>" (plist-get palette :tank-ink))
        (format "<path d='M-2 -3 L2 1 M2 -3 L-2 1' stroke='%s' stroke-width='1'/>" track)))))
 
-(defun etaf-tanks--arena-image (cache world palette)
-  "Project native WORLD into one line-sliced image; reuse the static terrain."
-  (let* ((key (list palette (plist-get world :terrain)))
-         (base (or (gethash key cache)
-                   (puthash key (etaf-tanks--terrain-art (plist-get world :terrain) palette) cache)))
-         (parts (list base)))
-    (dolist (entity (plist-get world :entities))
-      (push (etaf-tanks--tank-art entity palette) parts))
-    (dolist (shell (plist-get world :shells))
-      (push (format "<circle cx='%.2f' cy='%.2f' r='3.2' fill='%s' stroke='%s' stroke-width='1'/>"
-                    (* 32 (plist-get shell :px)) (* 32 (plist-get shell :py))
-                    (plist-get palette :tank-shell) (plist-get palette :tank-shadow)) parts))
-    (dolist (effect (plist-get world :effects))
-      (push (format "<g transform='translate(%.2f,%.2f)' stroke='%s' stroke-width='2'><path d='M-7 0 H7 M0 -7 V7 M-5 -5 L5 5 M-5 5 L5 -5'/><circle r='4' fill='%s' stroke='none'/></g>"
-                    (* 32 (plist-get effect :px)) (* 32 (plist-get effect :py))
-                    (plist-get palette :tank-spark) (plist-get palette :tank-shell)) parts))
-    (list 'image :type 'svg :data
-          (concat "<svg xmlns='http://www.w3.org/2000/svg' width='672' height='416' viewBox='0 0 672 416'>"
-                  (apply #'concat (nreverse parts)) "</svg>"))))
+(defun etaf-tanks--visible-in (item radius region)
+  "Whether ITEM artwork with RADIUS intersects display REGION.
+This is presentation culling, never collision or native-world simulation."
+  (let ((x (* 32 (plist-get item :px))) (y (* 32 (plist-get item :py))))
+    (and (<= (- (nth 0 region) radius) x (+ (nth 0 region) (nth 2 region) radius))
+         (<= (- (nth 1 region) radius) y (+ (nth 1 region) (nth 3 region) radius)))))
+
+(defun etaf-tanks--arena-patch (terrain-cache frame-cache world palette metrics row column)
+  "Return one bounded, cached display region containing only local sprites."
+  (let* ((region (list (* column 336) (* row (/ 416.0 20)) 336 (/ 416.0 20)))
+         (entities (cl-remove-if-not (lambda (item) (etaf-tanks--visible-in item 20 region)) (plist-get world :entities)))
+         (shells (cl-remove-if-not (lambda (item) (etaf-tanks--visible-in item 4 region)) (plist-get world :shells)))
+         (effects (cl-remove-if-not (lambda (item) (etaf-tanks--visible-in item 9 region)) (plist-get world :effects)))
+         (base-key (list palette region (plist-get world :terrain)))
+         (key (list base-key entities shells effects)))
+    (or (gethash key frame-cache)
+        (let* ((base (or (gethash base-key terrain-cache)
+                         (puthash base-key (etaf-tanks--terrain-art (plist-get world :terrain) palette region) terrain-cache)))
+               (parts (list base)))
+          (dolist (entity entities) (push (etaf-tanks--tank-art entity palette) parts))
+          (dolist (shell shells)
+            (push (format "<circle cx='%.2f' cy='%.2f' r='3.2' fill='%s' stroke='%s' stroke-width='1'/>"
+                          (* 32 (plist-get shell :px)) (* 32 (plist-get shell :py))
+                          (plist-get palette :tank-shell) (plist-get palette :tank-shadow)) parts))
+          (dolist (effect effects)
+            (push (format "<g transform='translate(%.2f,%.2f)' stroke='%s' stroke-width='2'><path d='M-7 0 H7 M0 -7 V7 M-5 -5 L5 5 M-5 5 L5 -5'/><circle r='4' fill='%s' stroke='none'/></g>"
+                          (* 32 (plist-get effect :px)) (* 32 (plist-get effect :py))
+                          (plist-get palette :tank-spark) (plist-get palette :tank-shell)) parts))
+          (let ((source (list 'image :type 'svg :data
+                              (format "<svg xmlns='http://www.w3.org/2000/svg' width='%d' height='%d' viewBox='%.2f %.2f %.2f %.2f'>%s</svg>"
+                                      (/ (plist-get metrics :pixel-width) 2) (plist-get metrics :line-height)
+                                      (nth 0 region) (nth 1 region) (nth 2 region) (nth 3 region)
+                                      (apply #'concat (nreverse parts))))))
+            (when (> (hash-table-count frame-cache) 512) (clrhash frame-cache))
+            (puthash key source frame-cache))))))
 
 (etaf-define-component etaf-tanks--arena (&key session palette metrics)
   :bindings ((world (etaf-computed (lambda () (etaf-gamekit-view session :world)) :test #'equal))
-             (cache (make-hash-table :test #'equal)))
+             (terrain-cache (make-hash-table :test #'equal))
+             (frame-cache (make-hash-table :test #'equal)))
   :view
   (box :ref 'tanks-board :width (list 'ch (plist-get metrics :columns))
     :height (list 'lh (plist-get metrics :rows)) :overflow 'hidden
     :tab-index 0 :role 'region :aria-label "战场：WASD 驾驶，空格开火"
     :region '(:id tanks-field :label "战场" :key "b" :enter tanks-board)
-    (image :if (plist-get metrics :graphic) :ref 'tanks-canvas
-      :src (etaf-tanks--arena-image cache (etaf-value world) (etaf-value palette))
-      :columns (plist-get metrics :columns) :rows (plist-get metrics :rows))
+    (etaf-tile-grid :if (plist-get metrics :graphic) :ref 'tanks-canvas
+      :rows 20 :columns 2 :cell-width (/ (plist-get metrics :columns) 2)
+      :cell-image (lambda (r c) (etaf-tanks--arena-patch terrain-cache frame-cache
+                                                     (etaf-value world) (etaf-value palette) metrics r c))
+      :cell-label (lambda (_r _c) "战场图像"))
     (etaf-tile-grid :if (not (plist-get metrics :graphic)) :rows 13 :columns 21 :cell-width 2
       :cell-text (lambda (r c) (cadr (etaf-tanks--cell (etaf-value world) r c)))
       :cell-color (lambda (r c)

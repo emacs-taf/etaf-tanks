@@ -83,9 +83,12 @@ untouched. No automatic save occurs on close.
 
 `etaf-tanks-appearance` selects the initial `auto`, `light` or `dark` palette.
 Auto follows the opening frame; every instance can switch independently.
-The graphical arena uses one vector image through ETAF's public image Host,
-sliced into standard text rows; tank tracks, hulls, barrels, projectiles and
-impacts project native state. Terminals use text cells as a fallback.
+The graphical arena separates immutable terrain from dynamic tank and shell
+artwork. Small retained image regions project only the objects intersecting
+them, so movement does not decode or repaint the entire map. They use ETAF UI's
+public image grid and standard text rows; tracks, hulls, barrels, projectiles
+and impacts remain derived from native state. Terminals use text cells as a
+fallback.
 
 The graphical arena has twenty text rows and an aspect-correct character width
 chosen once when opened: with a 7 × 16 pixel font it is 518 × 320 pixels.
