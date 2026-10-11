@@ -95,13 +95,17 @@ Combined driving/firing renews its clear corridor after four live seconds."
                                           :key (lambda (entity) (plist-get entity :id)) :test #'equal)))
                         (cons (plist-get tank :px) (plist-get tank :py))))
          (redrawing (_window)
-           (if (and (eq t (plist-get (state) :moving))
-                    (not (eq t (plist-get (state) :paused))))
+           (let ((moving (eq t (plist-get (state) :moving)))
+                 (paused (eq t (plist-get (state) :paused))))
+             (when (and (not paused) (or moving painted-at))
                (let ((point (position)) (images (canvas)) (now (float-time)))
                  (unless (or (equal point painted-position) (equal images painted-images))
                    (when painted-at (push (* 1000 (- now painted-at)) paint-gaps))
-                   (setq painted-at now painted-position point painted-images images)))
-             (setq painted-at nil painted-position nil painted-images nil))))
+                   (setq painted-at now painted-position point painted-images images))))
+             ;; Include the final moved frame before ending the segment: a
+             ;; stall that covers the last part of a move must not disappear.
+             (when (or paused (not moving))
+               (setq painted-at nil painted-position nil painted-images nil)))))
       (setq paint-observer #'redrawing)
       (list
        :buffer (etaf-gamekit-buffer session)
@@ -118,6 +122,13 @@ Combined driving/firing renews its clear corridor after four live seconds."
            (error "Battle fixture failed: %s" (etaf-gamekit-last-error session)))
          (unless fitted (etaf-refit runtime (selected-window)) (setq fitted t))
          (when (and (eq (etaf-gamekit-status session) 'ready) (etaf-host-ref-size runtime 'tanks-board))
+           ;; The final position can be drawn one tick before :moving clears.
+           ;; If clearing it needs no repaint, end the already-drawn segment
+           ;; here; otherwise keep it until its final frame is actually offered.
+           (when (and (eq operation 'drive-fire) painted-at
+                      (not (eq t (plist-get (state) :moving)))
+                      (equal (position) painted-position))
+             (setq painted-at nil painted-position nil painted-images nil))
            (cond
             ((or (eq t (plist-get (state) :won)) (eq t (plist-get (state) :lost))
                  (and (eq operation 'drive-fire) (>= (plist-get (state) :seconds) 4)))

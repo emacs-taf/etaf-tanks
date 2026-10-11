@@ -6,7 +6,7 @@
 (require 'etaf-tanks-model)
 
 (defun etaf-tanks--metrics ()
-  "Choose fixed battlefield metrics and two equal image columns."
+  "Choose fixed battlefield metrics for the opening font."
   (if (and (display-graphic-p) (image-type-available-p 'svg))
       (let ((columns (* 2 (round (/ (* 20.0 (frame-char-height) 21)
                                      (* 26 (frame-char-width)))))))
@@ -69,9 +69,10 @@ This is presentation culling, never collision or native-world simulation."
     (and (<= (- (nth 0 region) radius) x (+ (nth 0 region) (nth 2 region) radius))
          (<= (- (nth 1 region) radius) y (+ (nth 1 region) (nth 3 region) radius)))))
 
-(defun etaf-tanks--arena-patch (terrain-cache frame-cache world palette metrics row column)
-  "Return one bounded, cached display region containing only local sprites."
-  (let* ((region (list (* column 336) (* row (/ 416.0 20)) 336 (/ 416.0 20)))
+(defun etaf-tanks--arena-patch (terrain-cache frame-cache world palette metrics row span)
+  "Return a local display region in character SPAN, containing nearby sprites."
+  (let* ((scale (/ 672.0 (plist-get metrics :columns)))
+         (region (list (* (car span) scale) (* row (/ 416.0 20)) (* (cadr span) scale) (/ 416.0 20)))
          (entities (cl-remove-if-not (lambda (item) (etaf-tanks--visible-in item 20 region)) (plist-get world :entities)))
          (shells (cl-remove-if-not (lambda (item) (etaf-tanks--visible-in item 4 region)) (plist-get world :shells)))
          (effects (cl-remove-if-not (lambda (item) (etaf-tanks--visible-in item 9 region)) (plist-get world :effects)))
@@ -91,8 +92,9 @@ This is presentation culling, never collision or native-world simulation."
                           (* 32 (plist-get effect :px)) (* 32 (plist-get effect :py))
                           (plist-get palette :tank-spark) (plist-get palette :tank-shell)) parts))
           (let ((source (list 'image :type 'svg :data
-                              (format "<svg xmlns='http://www.w3.org/2000/svg' width='%d' height='%d' viewBox='%.2f %.2f %.2f %.2f'>%s</svg>"
-                                      (/ (plist-get metrics :pixel-width) 2) (plist-get metrics :line-height)
+                              (format "<svg xmlns='http://www.w3.org/2000/svg' width='%d' height='%d' viewBox='%.6f %.6f %.6f %.6f' preserveAspectRatio='none'>%s</svg>"
+                                      (* (cadr span) (/ (plist-get metrics :pixel-width) (plist-get metrics :columns)))
+                                      (plist-get metrics :line-height)
                                       (nth 0 region) (nth 1 region) (nth 2 region) (nth 3 region)
                                       (apply #'concat (nreverse parts))))))
             (when (> (hash-table-count frame-cache) 512) (clrhash frame-cache))
@@ -100,6 +102,9 @@ This is presentation culling, never collision or native-world simulation."
 
 (etaf-define-component etaf-tanks--arena (&key session palette metrics)
   :bindings ((world (etaf-computed (lambda () (etaf-gamekit-view session :world)) :test #'equal))
+             (spans (cl-loop for column below 4
+                             for start = (/ (* column (plist-get metrics :columns)) 4)
+                             collect (list start (- (/ (* (1+ column) (plist-get metrics :columns)) 4) start))))
              (terrain-cache (make-hash-table :test #'equal))
              (frame-cache (make-hash-table :test #'equal)))
   :view
@@ -107,11 +112,12 @@ This is presentation culling, never collision or native-world simulation."
     :height (list 'lh (plist-get metrics :rows)) :overflow 'hidden
     :tab-index 0 :role 'region :aria-label "战场：WASD 驾驶，空格开火"
     :region '(:id tanks-field :label "战场" :key "b" :enter tanks-board)
-    (etaf-tile-grid :if (plist-get metrics :graphic) :ref 'tanks-canvas
-      :rows 20 :columns 2 :cell-width (/ (plist-get metrics :columns) 2)
-      :cell-image (lambda (r c) (etaf-tanks--arena-patch terrain-cache frame-cache
-                                                     (etaf-value world) (etaf-value palette) metrics r c))
-      :cell-label (lambda (_r _c) "战场图像"))
+    (row :if (plist-get metrics :graphic) :ref 'tanks-canvas
+      (etaf-tile-grid :for (span spans) :key (car span)
+        :rows 20 :columns 1 :cell-width (cadr span)
+        :cell-image (lambda (r _c) (etaf-tanks--arena-patch terrain-cache frame-cache
+                                                        (etaf-value world) (etaf-value palette) metrics r span))
+        :cell-label (lambda (_r _c) "战场图像")))
     (etaf-tile-grid :if (not (plist-get metrics :graphic)) :rows 13 :columns 21 :cell-width 2
       :cell-text (lambda (r c) (cadr (etaf-tanks--cell (etaf-value world) r c)))
       :cell-color (lambda (r c)
