@@ -54,8 +54,10 @@
     (should (eq status 'ready)) (should settled)))
 
 (defun etaf-tanks-test--view (session key)
-  "Return SESSION's observation value for KEY."
-  (etaf-gamekit-view session key))
+  "Return KEY from SESSION's latest acknowledged observation.
+The display view is published on a timer after the acknowledgement, so
+reading it right after an action could still show the previous state."
+  (plist-get (etaf-gamekit-observation session) key))
 
 (defun etaf-tanks-test--phase-p (session &rest phases)
   "Return a predicate that holds while SESSION shows one of PHASES."
