@@ -175,13 +175,13 @@ battles restart through public actions in readiness."
        (lambda (_index)
          (setq before-image (canvas) before-position (position))
          (pcase operation
-           ('drive (setq key "d" expected (car before-position)))
+           ('drive (setq key "<right>" expected (car before-position)))
            ('drive-fire (setq expected (car before-position)
                               expected-shots (1+ (plist-get (state) :shots))
-                              key (if (> expected 3.75) "a SPC" "d SPC")))
+                              key (if (> expected 3.75) "<left> f" "<right> f")))
            ('aim (setq expected (if (equal (plist-get (state) :facing) "n") "e" "n")
-                       key (if (equal expected "n") "W" "D")))
-           ('fire (setq key "SPC" expected (1+ (plist-get (state) :shots)))))
+                       key (if (equal expected "n") "S-<up>" "S-<right>")))
+           ('fire (setq key "f" expected (1+ (plist-get (state) :shots)))))
          (execute-kbd-macro (kbd key)))
        :settled
        (lambda ()
@@ -192,7 +192,7 @@ battles restart through public actions in readiness."
               (pcase operation
                 ('drive (> (car (position)) expected))
                 ('drive-fire (and (= expected-shots (plist-get (state) :shots))
-                                  (if (string-prefix-p "d" key) (> (car (position)) expected)
+                                  (if (string-prefix-p "<right>" key) (> (car (position)) expected)
                                     (< (car (position)) expected))))
                 ('aim (equal expected (plist-get (state) :facing)))
                 ('fire (= expected (plist-get (state) :shots))))))
@@ -217,7 +217,7 @@ battles restart through public actions in readiness."
 
 (dolist (case '((drive fresh "Drive key to the first visibly moved tank in a live arena")
                 (aim series "Repeated aiming keys while enemies and shells keep moving")
-                (fire series "Repeated loaded shots through Space and visible projectiles")
+                (fire series "Repeated loaded shots through F and visible projectiles")
                 (drive-fire series "Continuous driving, alternating turns and simultaneous fire")))
   (let ((operation (car case)))
     (taf-benchmark-register (format "etaf-tanks.keys.%s" operation)

@@ -27,9 +27,9 @@ and actual display refresh are different clocks, not a per-command turn system.
 | Input | Action |
 | --- | --- |
 | P / Start–Pause | Begin, freeze or resume the simulation; clear queued movement |
-| W A S D / driving buttons | Drive north, west, south or east; repeated input keeps driving |
-| Shift+W A S D / aiming buttons | Aim in that direction without moving |
-| Space / Fire | Fire when the cannon is loaded |
+| Arrow keys / driving buttons | Drive north, west, south or east; repeated input keeps driving |
+| Shift+arrow keys / aiming buttons | Aim in that direction without moving |
+| F / Fire | Fire when the cannon is loaded |
 | X / Stop | Cancel the player's route |
 | N / Restart | Restore the initial paused battle |
 | C-s / Save, C-o / Load | Pause and choose a local snapshot file |
@@ -41,7 +41,7 @@ A player shell destroys one enemy tank; an enemy shell deals 20 damage. Walls
 block both traffic and shells, and tanks cannot overlap. All three enemy tanks
 must be destroyed to win; zero armour is defeat. There is no friendly fire.
 The player cannon reloads in 0.28 seconds, enemy cannons in 1.6 seconds. Holding
-Space fires as the cannon becomes available. Driving and firing can be sent
+F fires as the cannon becomes available. Driving and firing can be sent
 together without losing the shot. The native kernel accepts repeated fire
 during reload as a no-op; it never shortens the reload or creates extra shells.
 
@@ -114,9 +114,9 @@ canvas changes and the driver's final redisplay. Driving measures the first
 visible movement in a fresh live arena, not completion of the travel animation.
 Aiming and loaded shots use continuous live battles with autonomous enemies.
 The firing fixture aims at aligned raiders during readiness and waits for the
-normal reload before timing Space; it plays through victory and restarts a
+normal reload before timing F; it plays through victory and restarts a
 terminal battle rather than repeatedly shooting one empty direction until
-killed. Preparation aiming is not included in the separate Space latency. A projectile
+killed. Preparation aiming is not included in the separate F latency. A projectile
 that could end the match is allowed to resolve before admitting another shot;
 physics and enemies keep running. Readiness also waits for the displayed player
 summary to match the latest accepted state. A winning shot is a valid completion,

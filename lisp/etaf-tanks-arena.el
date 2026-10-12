@@ -140,7 +140,7 @@ This is presentation culling, never collision or native-world simulation."
   :view
   (box :ref 'tanks-board :width (list 'ch (plist-get metrics :columns))
     :height (list 'lh (plist-get metrics :rows)) :overflow 'hidden
-    :tab-index 0 :role 'region :aria-label "战场：WASD 驾驶，空格开火"
+    :tab-index 0 :role 'region :aria-label "战场：方向键驾驶，F 开火"
     :region '(:id tanks-field :label "战场" :key "b" :enter tanks-board)
     (row :if (plist-get metrics :graphic) :ref 'tanks-canvas
       (column :for (span spans) :key (car span)

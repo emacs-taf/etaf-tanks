@@ -35,11 +35,11 @@
     (flex :width 'stretch :justify-content 'space-between :align-items 'center
       (row :item-gap '(ch 1)
         (etaf-label :text "驾驶" :variant 'muted)
-        (etaf-button :for (entry '(("n" "W 北" 0 -1) ("w" "A 西" -1 0) ("s" "S 南" 0 1) ("e" "D 东" 1 0)))
+        (etaf-button :for (entry '(("n" "↑ 北" 0 -1) ("w" "← 西" -1 0) ("s" "↓ 南" 0 1) ("e" "→ 东" 1 0)))
           :key (car entry) :ref (intern (concat "tanks-drive-" (car entry))) :label (cadr entry) :variant 'secondary
           :disabled (or (eq t (plist-get (etaf-value state) :paused)) (etaf-tanks--ended-p (etaf-value state)))
           :on-press (lambda () (etaf-tanks--move session (nth 2 entry) (nth 3 entry)))))
-      (etaf-button :label "开火 · 空格" :ref 'tanks-fire
+      (etaf-button :label "开火 · F" :ref 'tanks-fire
         :disabled (not (eq t (plist-get (etaf-value state) :can_fire)))
         :on-press (lambda () (etaf-tanks--fire session))))
     (flex :width 'stretch :justify-content 'space-between :align-items 'center
@@ -90,16 +90,17 @@
     :cross-align (if (< (or (car (etaf-value viewport)) 0)
                        (* (frame-char-width) (+ 4 (plist-get metrics :columns)))) 'start 'center)
     :background-color (etaf-tanks--color :ui-bg) :color (etaf-tanks--color :ui-fg)
+    :on-direction (lambda (direction)
+                    (pcase direction
+                      ('up (etaf-tanks--move session 0 -1)) ('down (etaf-tanks--move session 0 1))
+                      ('left (etaf-tanks--move session -1 0)) ('right (etaf-tanks--move session 1 0)))
+                    'handled)
     :keys (list
-           (list "w" (lambda () (etaf-tanks--move session 0 -1)) "向北驾驶")
-           (list "a" (lambda () (etaf-tanks--move session -1 0)) "向西驾驶")
-           (list "s" (lambda () (etaf-tanks--move session 0 1)) "向南驾驶")
-           (list "d" (lambda () (etaf-tanks--move session 1 0)) "向东驾驶")
-           (list "W" (lambda () (etaf-tanks--send session "aim" '(:direction "n"))) "原地瞄北")
-           (list "A" (lambda () (etaf-tanks--send session "aim" '(:direction "w"))) "原地瞄西")
-           (list "S" (lambda () (etaf-tanks--send session "aim" '(:direction "s"))) "原地瞄南")
-           (list "D" (lambda () (etaf-tanks--send session "aim" '(:direction "e"))) "原地瞄东")
-           (list "SPC" (lambda () (etaf-tanks--fire session)) "开火")
+           (list "S-<up>" (lambda () (etaf-tanks--send session "aim" '(:direction "n"))) "原地瞄北")
+           (list "S-<left>" (lambda () (etaf-tanks--send session "aim" '(:direction "w"))) "原地瞄西")
+           (list "S-<down>" (lambda () (etaf-tanks--send session "aim" '(:direction "s"))) "原地瞄南")
+           (list "S-<right>" (lambda () (etaf-tanks--send session "aim" '(:direction "e"))) "原地瞄东")
+           (list "f" (lambda () (etaf-tanks--fire session)) "开火")
            (list "x" (lambda () (etaf-tanks--send session "stop")) "停车")
            (list "p" (lambda () (etaf-tanks--toggle-pause session)) "开始或暂停")
            (list "n" (lambda () (etaf-tanks--send session "restart")) "重新出击")
@@ -138,7 +139,7 @@
         :on-close (lambda () (setf (etaf-value help) nil))
         (column :item-gap '(lh 1)
           (etaf-label :text "这是一场实时战斗：开始后敌车会自主追击和开火，炮弹持续飞行。击毁三辆敌车即获胜，装甲归零则失败。" :wrap-mode 'word)
-          (etaf-label :text "WASD 向四个方向驾驶；每次按键行驶一格，按住可以连续驾驶。Shift+WASD 原地瞄准，空格开火，X 停车。也可点击下方驾驶和瞄准按钮。" :wrap-mode 'word)
+          (etaf-label :text "方向键向四个方向驾驶；每次按键行驶一格，按住可以连续驾驶。Shift+方向键原地瞄准，F 开火，X 停车。也可点击下方驾驶和瞄准按钮。" :wrap-mode 'word)
           (etaf-label :text "利用掩体阻挡炮弹，看到敌车时转向开火。带圆标的绿色战车是我方，叉形标记是敌车，亮黄色是炮弹。" :wrap-mode 'word)
           (etaf-label :text "P 暂停；打开说明或存档提示也会先暂停。关闭说明后按 P 继续。读取存档后保持暂停，清空移动路线和在途炮弹。" :wrap-mode 'word)
           (etaf-label :text "T 切换亮暗主题，N 重开，Q 退出。主题和窗口变化不重启 Godot。" :wrap-mode 'word))))))

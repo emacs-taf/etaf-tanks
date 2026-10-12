@@ -94,11 +94,11 @@ snapshot and frame geometry are cleaned up after success or failure."
               (action "restore-size" (lambda () (etaf-tanks-gui--size 900 42))
                       (lambda () (= (cdr (etaf-runtime-viewport runtime)) 42)))
               (key "start" "p" (lambda () (eq :false (plist-get (state) :paused))))
-              (key "fire" "SPC" (lambda () (> (plist-get (state) :shots) 0)) t)
+              (key "fire" "f" (lambda () (> (plist-get (state) :shots) 0)) t)
               (key "pause" "p" (lambda () (eq t (plist-get (state) :paused))) t)
-              (key "aim-north" "W" (lambda () (equal (plist-get (state) :facing) "n")))
+              (key "aim-north" "S-<up>" (lambda () (equal (plist-get (state) :facing) "n")))
               (key "resume" "p" (lambda () (eq :false (plist-get (state) :paused))))
-              (key "drive-north" "w"
+              (key "drive-north" "<up>"
                    (lambda () (< (plist-get (car (plist-get (etaf-gamekit-view session :world) :entities)) :py) 10)))
               (key "stop" "x" (lambda () (eq :false (plist-get (state) :moving))))
               (action "pause-on-leave"

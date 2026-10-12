@@ -19,8 +19,8 @@ through GameKit. Add this repository root to `load-path`:
 (etaf-tanks-open)
 ```
 
-The battle starts paused. Press `P` to begin, `W A S D` to drive north/west/south/
-east, `Shift` with those letters to aim without moving, and `Space` to fire.
+The battle starts paused. Press `P` to begin, the arrow keys to drive, `Shift` with
+an arrow key to aim without moving, and `F` to fire.
 The same actions have mouse-accessible controls below the battlefield. `X`
 stops movement, `N` restarts, `T` switches palettes and `Q` closes the game.
 Opening help or a snapshot prompt pauses the battle first.
