@@ -1,4 +1,4 @@
-# Iron Tide · 钢铁洪流
+# 坦克大战
 
 A tank battle in Emacs that follows the rules of the 1985 arcade classic:
 defend the eagle base at the bottom of the field, destroy every enemy tank of

@@ -1,6 +1,6 @@
-# Iron Tide · 钢铁洪流
+# 坦克大战
 
-Iron Tide is a Battle City style tank game. Each game runs an independent
+A Battle City-style tank game for Emacs. Each game runs an independent
 headless Godot world that owns the rules, a fixed simulation clock and the
 battlefield renderer; the ETAF application owns the stage select, battle panel,
 map editor, settings, dialogs and file prompts. Requiring GameKit never loads

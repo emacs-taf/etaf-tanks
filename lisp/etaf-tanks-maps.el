@@ -118,12 +118,12 @@ until the next record replaces it."
             (insert-file-contents etaf-tanks-progress-file)
             (let ((data (read (current-buffer))))
               (if (and (plistp data) (eq (plist-get data :version) 1)) data
-                (message "钢铁洪流：进度文件格式不符，已从头记录：%s"
+                (message "坦克大战：进度文件格式不符，已从头记录：%s"
                          (abbreviate-file-name etaf-tanks-progress-file))
                 nil)))
         (file-missing nil)
         ((file-error end-of-file invalid-read-syntax)
-         (message "钢铁洪流：无法读取进度文件：%s" (error-message-string problem))
+         (message "坦克大战：无法读取进度文件：%s" (error-message-string problem))
          nil))
       (list :version 1 :cleared nil :best nil)))
 
@@ -151,7 +151,7 @@ NUMBER nil records only the score.  The record is written to
         (condition-case problem
             (etaf-tanks--write-file etaf-tanks-progress-file
                                     (let ((print-length nil) (print-level nil)) (prin1-to-string next)))
-          (file-error (message "钢铁洪流：无法保存进度：%s" (error-message-string problem)))))
+          (file-error (message "坦克大战：无法保存进度：%s" (error-message-string problem)))))
       next)))
 
 (provide 'etaf-tanks-maps)

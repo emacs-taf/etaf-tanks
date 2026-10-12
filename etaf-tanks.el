@@ -1,11 +1,11 @@
 ;;; -*- lexical-binding: t; -*-
-;;; etaf-tanks.el --- Iron Tide, a Battle City style tank game
+;;; etaf-tanks.el --- A Battle City-style tank game for Emacs
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;; Version: 0.2.0
 ;; Package-Requires: ((emacs "29.1") (etaf-gamekit "0.1.0") (etaf-ui "0.1.0"))
 ;;; Commentary:
-;; Iron Tide follows the rules of the 1985 arcade tank battle: defend the
+;; This game follows the rules of the 1985 arcade tank battle: defend the
 ;; eagle base at the bottom of the field, destroy every enemy tank of the
 ;; stage, and lose when the base falls or the last life is gone.  A headless
 ;; Godot world owns the rules, a fixed simulation clock and the renderer,
@@ -85,18 +85,18 @@
 ;;
 ;; Function: etaf-tanks-close (&optional instance)
 ;;;###autoload (autoload 'etaf-tanks-close "etaf-tanks" nil t)
-;; Close INSTANCE and its buffer. Omitted uses the current Iron Tide buffer.
+;; Close INSTANCE and its buffer. Omitted uses the current tank battle buffer.
 ;; No automatic save is performed; campaign progress is already recorded.
 ;;
 ;;; Code:
 (require 'etaf-gamekit)
 (require 'etaf-ui)
-(defgroup etaf-tanks nil "Iron Tide tank battle." :group 'games)
+(defgroup etaf-tanks nil "Tank battle in Emacs." :group 'games)
 (defcustom etaf-tanks-appearance 'auto
-  "Initial appearance of new Iron Tide instances."
+  "Initial appearance of new tank battles."
   :type '(choice (const auto) (const light) (const dark)) :group 'etaf-tanks)
 (defcustom etaf-tanks-difficulty 'normal
-  "Initial difficulty of new Iron Tide instances."
+  "Initial difficulty of new tank battles."
   :type '(choice (const easy) (const normal) (const hard)) :group 'etaf-tanks)
 (defcustom etaf-tanks-game-speed 1.0
   "Simulation speed factor, from 0.5 to 2.0."
@@ -119,7 +119,7 @@ small, medium and large draw 12, 16 and 20 pixels per block; a window too
 small for the preference uses smaller blocks, down to 10 pixels."
   :type '(choice (const small) (const medium) (const large)) :group 'etaf-tanks)
 (defcustom etaf-tanks-map-directory (locate-user-emacs-file "etaf-tanks/maps/")
-  "Directory of custom Iron Tide maps."
+  "Directory of custom tank battle maps."
   :type 'directory :group 'etaf-tanks)
 (defcustom etaf-tanks-progress-file (locate-user-emacs-file "etaf-tanks/progress.eld")
   "File recording cleared stages and best scores."

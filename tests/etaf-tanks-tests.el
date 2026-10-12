@@ -271,8 +271,12 @@ battle's published play phase from passing for the new one."
       (should (equal before (etaf-tanks-test--stable second))))))
 
 (ert-deftest etaf-tanks-keys-drive-aim-fire-and-pause-a-campaign ()
-  "The stage select starts a campaign that the documented keys control."
+  "The named stage select starts a campaign that the documented keys control."
   (etaf-tanks-test--with-sessions (session)
+    (let ((title (plist-get (etaf-gamekit-game-info session) :title))
+          (heading-present (string-match-p "坦克大战" (etaf-tanks-test--text session))))
+      (should (equal title "坦克大战"))
+      (should heading-present))
     (should (string-match-p "第 1 关" (etaf-tanks-test--text session)))
     (etaf-tanks-test--keys session "g")
     (etaf-tanks-test--wait session (etaf-tanks-test--phase-p session "play"))

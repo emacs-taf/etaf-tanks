@@ -33,7 +33,7 @@
   "Display names of the bonus items.")
 
 (cl-defstruct (etaf-tanks--ui (:constructor etaf-tanks--ui-make) (:copier nil))
-  "Presentation state of one Iron Tide instance; slots hold reactive refs."
+  "Presentation state of one tank battle; slots hold reactive refs."
   session metrics directory appearance settings difficulty catalog tab selection progress origin
   draft cursor brush brush-size pen history dirty help settings-open)
 
@@ -137,12 +137,12 @@
   "Pause UI's battle and run snapshot OPERATION on a prompted path."
   (let ((session (etaf-tanks--ui-session ui)))
     (if (and (equal operation "save") (not (member (etaf-tanks--phase session) '("intro" "play"))))
-        (message "钢铁洪流：只有战斗中才能存档")
+        (message "坦克大战：只有战斗中才能存档")
       (etaf-tanks--pause-for-input session)
       (let ((path (etaf-call-with-input
                    (lambda ()
                      (read-file-name (if (equal operation "save") "保存战斗到：" "读取战斗：")
-                                     nil nil (equal operation "load") "iron-tide.json")))))
+                                     nil nil (equal operation "load") "tanks.json")))))
         (when (and path (not (string-empty-p path)))
           (when (equal operation "load")
             (setf (etaf-value (etaf-tanks--ui-origin ui)) '(:kind loaded)))
@@ -188,7 +188,7 @@
     (customize-save-variable 'etaf-tanks-frame-rate (plist-get settings :frame-rate))
     (customize-save-variable 'etaf-tanks-board-size (plist-get settings :board))
     (customize-save-variable 'etaf-tanks-difficulty (etaf-value (etaf-tanks--ui-difficulty ui)))
-    (message "钢铁洪流：已保存为默认设置")))
+    (message "坦克大战：已保存为默认设置")))
 
 (defun etaf-tanks--display-sync (ui display)
   "Point UI's native canvas at its strip directory with DISPLAY.
@@ -252,7 +252,7 @@ DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
          (result (etaf-tanks--draft-paint (etaf-value (etaf-tanks--ui-draft ui)) (car cursor) (cdr cursor)
                                           (etaf-value (etaf-tanks--ui-brush ui))
                                           (etaf-value (etaf-tanks--ui-brush-size ui)))))
-    (if (stringp result) (message "钢铁洪流：%s" result) (etaf-tanks--editor-change ui result))))
+    (if (stringp result) (message "坦克大战：%s" result) (etaf-tanks--editor-change ui result))))
 
 (defun etaf-tanks--editor-move (ui direction)
   "Move UI's cursor toward DIRECTION and paint while the pen is down."
@@ -294,7 +294,7 @@ DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
         (setf (etaf-value (etaf-tanks--ui-draft ui)) (plist-put (copy-sequence draft) :file file)
               (etaf-value (etaf-tanks--ui-dirty ui)) nil)
         (etaf-tanks--refresh-catalog ui)
-        (message "钢铁洪流：地图已保存到 %s" (abbreviate-file-name file))))))
+        (message "坦克大战：地图已保存到 %s" (abbreviate-file-name file))))))
 
 (defun etaf-tanks--editor-load (ui)
   "Open a map file into UI's editor."
@@ -302,7 +302,7 @@ DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
                (lambda () (read-file-name "打开地图：" (file-name-as-directory etaf-tanks-map-directory) nil t)))))
     (when (and file (file-regular-p file))
       (let ((map (etaf-tanks--map-parse (with-temp-buffer (insert-file-contents file nil 0 65536) (buffer-string)))))
-        (if (not map) (message "钢铁洪流：%s 里没有 map: 段落" (abbreviate-file-name file))
+        (if (not map) (message "坦克大战：%s 里没有 map: 段落" (abbreviate-file-name file))
           (etaf-tanks--editor-open ui (list :name (plist-get map :name) :counts (plist-get map :counts)
                                             :rows (plist-get map :rows) :file (expand-file-name file))))))))
 
@@ -318,7 +318,7 @@ DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
   "Play UI's draft as a one-off battle unless the native world rejects it."
   (let ((problem (etaf-gamekit-view (etaf-tanks--ui-session ui) :map_error)))
     (if (and (stringp problem) (not (string-empty-p problem)))
-        (message "钢铁洪流：%s" problem)
+        (message "坦克大战：%s" problem)
       (etaf-tanks--begin ui (etaf-tanks--draft-text (etaf-value (etaf-tanks--ui-draft ui))) 1 '(:kind draft)))))
 
 ;;; Layout
@@ -555,7 +555,7 @@ COMPACT arranges the essentials in three rows under the board."
 (etaf-define-component etaf-tanks--help-dialog (&key open)
   "Explain the rules and every key."
   :view
-  (etaf-dialog :open open :title "钢铁洪流 · 规则与按键" :width '(ch 66) :compact t :close-label "关闭"
+  (etaf-dialog :open open :title "坦克大战 · 规则与按键" :width '(ch 66) :compact t :close-label "关闭"
                :on-close (lambda () (setf (etaf-value open) nil))
     (column :item-gap '(lh 1)
       (etaf-label :wrap-mode 'word :text "守住底部的雄鹰基地，击毁本关全部敌车即过关。基地被击中、或生命耗尽，战斗结束。敌车从上方出生点分批出场，场上数量有上限。")
@@ -639,7 +639,7 @@ COMPACT arranges the essentials in three rows under the board."
       (etaf-focus runtime (etaf-tanks--focus-target ui screen)))))
 
 (etaf-define-component etaf-tanks--app (&key session graphic)
-  "Compose one Iron Tide instance over SESSION.
+  "Compose one tank battle over SESSION.
 GRAPHIC shows native frames from a private directory the instance owns."
   :bindings ((metrics (etaf-tanks--metrics graphic))
              (directory (and graphic (make-temp-file "etaf-tanks-" t)))
@@ -814,7 +814,7 @@ GRAPHIC shows native frames from a private directory the instance owns."
        (column :ref 'tanks-root :width (list 'ch width) :padding '((lh 1) (ch 2)) :item-gap '(lh 1)
          (flex :width 'stretch :justify-content 'space-between :align-items 'center
            (row :item-gap '(ch 2)
-             (etaf-label :text "钢铁洪流" :variant 'strong)
+             (etaf-label :text "坦克大战" :variant 'strong)
              (etaf-label :text (pcase current ('menu "选择关卡") ('editor "地图编辑") ('battle "战斗") (_ "")) :variant 'muted))
            (row :item-gap '(ch 1)
              (etaf-button :label "设置 · S" :ref 'tanks-settings-open :variant 'ghost

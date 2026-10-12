@@ -10,7 +10,7 @@
 (defvar-local etaf-tanks--session nil)
 
 (etaf-gamekit-define-game etaf-tanks-game
-  :title "Iron Tide · 钢铁洪流" :backend 'godot
+  :title "坦克大战" :backend 'godot
   :options (list :project (expand-file-name "native/godot" etaf-tanks--directory))
   :validate #'etaf-tanks--valid-p
   :view #'etaf-tanks--view)
@@ -23,7 +23,7 @@
     (etaf-tanks--pause-for-input etaf-tanks--session)))
 
 (defun etaf-tanks-open ()
-  "Start and display an independent Iron Tide sortie."
+  "Start and display an independent tank battle."
   (interactive)
   (let* ((session (etaf-gamekit-start etaf-tanks-game))
          (buffer (etaf-gamekit-buffer session)))
@@ -38,10 +38,10 @@
     session))
 
 (defun etaf-tanks-close (&optional instance)
-  "Close INSTANCE, or the current Iron Tide instance, without implicit saving."
+  "Close INSTANCE, or the current tank battle, without implicit saving."
   (interactive)
   (let ((session (or instance etaf-tanks--session)))
-    (unless session (user-error "This is not an Iron Tide buffer"))
+    (unless session (user-error "This is not a tank battle buffer"))
     (etaf-gamekit-close session)
     (when (buffer-live-p (etaf-gamekit-buffer session))
       (kill-buffer (etaf-gamekit-buffer session)))))
