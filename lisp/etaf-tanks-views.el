@@ -227,7 +227,7 @@ DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
 
 (defun etaf-tanks--editor-new (ui)
   "Edit a new empty map in UI."
-  (etaf-tanks--editor-open ui (list :name "新地图" :counts (list 14 4 2 0) :rows (etaf-tanks--blank-rows 26 26))))
+  (etaf-tanks--editor-open ui (list :name "新地图" :counts (list 20 6 3 1) :rows (etaf-tanks--blank-rows 40 30))))
 
 (defun etaf-tanks--editor-change (ui draft)
   "Replace UI's draft with DRAFT, keeping undo history."
@@ -662,7 +662,7 @@ GRAPHIC shows native frames from a private directory the instance owns."
                                                       (car builtin))
                                                   :key))
                   :progress progress :origin (etaf-ref nil)
-                  :draft (etaf-ref (list :name "新地图" :counts (list 14 4 2 0) :rows (etaf-tanks--blank-rows 26 26)))
+                  :draft (etaf-ref (list :name "新地图" :counts (list 20 6 3 1) :rows (etaf-tanks--blank-rows 40 30)))
                   :cursor (etaf-ref (cons 0 0)) :brush (etaf-ref ?#) :brush-size (etaf-ref 1) :pen (etaf-ref nil)
                   :history (etaf-ref nil) :dirty (etaf-ref nil) :help (etaf-ref nil) :settings-open (etaf-ref nil)))
              (theme (etaf-computed (lambda () (if (eq (etaf-value appearance) 'dark)
@@ -688,9 +688,9 @@ GRAPHIC shows native frames from a private directory the instance owns."
                           (lambda ()
                             (pcase (etaf-value screen)
                               ('editor (etaf-tanks--draft-size (etaf-value (etaf-tanks--ui-draft ui))))
-                              ('battle (or (etaf-value observed-size) (list 26 26)))
+                              ('battle (or (etaf-value observed-size) (list 40 30)))
                               (_ (let ((entry (etaf-tanks--entry ui)))
-                                   (if entry (list (plist-get entry :width) (plist-get entry :height)) (list 26 26))))))
+                                   (if entry (list (plist-get entry :width) (plist-get entry :height)) (list 40 30))))))
                           :test #'equal))
              (viewport (etaf-computed (lambda () (etaf-viewport)) :test #'equal))
              (layout (etaf-computed (lambda () (etaf-tanks--layout

@@ -43,9 +43,9 @@ A shell chips one quarter-block layer of brick across a tank's width; a
 three-star shell cuts two layers and also breaks steel. Water blocks tanks but
 not shells, forest hides tanks beneath it and ice makes tanks slide.
 
-Difficulty is easy (five lives, three enemies on the field), normal (three
-lives, four enemies) or hard (six enemies, faster spawns and fire, more armored
-upgrades). Later stages spawn and fire faster and put one more enemy on the
+Difficulty is easy (five lives, four enemies on the field), normal (three
+lives, five enemies) or hard (seven enemies, faster spawns and fire, more
+armored upgrades). Later stages spawn and fire faster and put one more enemy on the
 field from stage 10. Clearing stage 20 continues with stage 1 at a higher loop
 level. Lives, score and firepower carry into the next stage; retrying restores
 the stage's opening resources.
@@ -83,7 +83,8 @@ Customize in the `etaf-tanks-*` variables listed in the Commentary.
 
 ## Maps and the editor
 
-The campaign tab lists the twenty built-in stages with a ✓ on the ones cleared;
+The campaign tab lists the twenty built-in 40×30 stages, each with four enemy
+spawns, with a ✓ on the ones cleared;
 `etaf-tanks-progress-file` records cleared stages and best scores per
 difficulty. The custom tab lists the maps in `etaf-tanks-map-directory`;
 *Import* opens any map file in the editor.

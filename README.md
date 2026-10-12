@@ -3,7 +3,7 @@
 A tank battle in Emacs that follows the rules of the 1985 arcade classic:
 defend the eagle base at the bottom of the field, destroy every enemy tank of
 the stage, and lose when the base falls or your last tank is gone. Twenty
-original stages raise the difficulty step by step; basic, fast, power and
+original 40×30 stages raise the difficulty step by step; basic, fast, power and
 four-hit armored enemies arrive in waves, and flashing carriers drop helmet,
 clock, shovel, star, grenade and extra-tank bonuses. A map editor creates and
 test-plays your own stages.

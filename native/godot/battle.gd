@@ -30,9 +30,9 @@ const SHELL_SLOW := 120.0
 const SHELL_FAST := 240.0
 const EXTRA_LIFE := 20000
 const DIFFICULTIES := {
-	"easy": {"name": "简单", "lives": 5, "cap": 3, "interval": 3.6, "fire": 0.45, "aggression": 0.15, "upgrade": 0.0},
-	"normal": {"name": "普通", "lives": 3, "cap": 4, "interval": 2.8, "fire": 0.8, "aggression": 0.35, "upgrade": 0.08},
-	"hard": {"name": "困难", "lives": 3, "cap": 6, "interval": 2.0, "fire": 1.3, "aggression": 0.6, "upgrade": 0.25},
+	"easy": {"name": "简单", "lives": 5, "cap": 4, "interval": 3.6, "fire": 0.45, "aggression": 0.15, "upgrade": 0.0},
+	"normal": {"name": "普通", "lives": 3, "cap": 5, "interval": 2.8, "fire": 0.8, "aggression": 0.35, "upgrade": 0.08},
+	"hard": {"name": "困难", "lives": 3, "cap": 7, "interval": 2.0, "fire": 1.3, "aggression": 0.6, "upgrade": 0.25},
 }
 
 class Tank:
