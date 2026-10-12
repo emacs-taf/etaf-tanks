@@ -95,13 +95,16 @@ COUNTER is a one-element list numbering the battles begun, which seeds them."
   "Measure real command-loop input during the final stage's live battle.
 Driving and aiming alternate west and east, so every sample turns the tank
 and it keeps a lane near its spawn; every sample must also change the
-published battlefield image.  Finished battles
-are renewed through public actions in readiness, outside the measurement."
+published battlefield image.  From its second sample on, driving while
+firing must also have seen the battlefield repainted at least twice while
+the tank moved; one sample can settle on its first repaint.  Finished
+battles are renewed through public actions in readiness, outside the
+measurement."
   (unless (display-graphic-p)
     (error "Native-input workloads require a graphical display"))
   (let* ((session (etaf-tanks-open))
          (runtime (etaf-runtime-for-buffer (etaf-gamekit-buffer session)))
-         (counter (list 0)) east expected expected-shots before-image key fitted
+         (counter (list 0)) (invoked 0) east expected expected-shots before-image key fitted
          paint-observer paint-installed painted-at painted-images paint-gaps)
     (cl-labels
         ((actor (field) (plist-get (etaf-gamekit-view session :actor) field))
@@ -146,6 +149,7 @@ are renewed through public actions in readiness, outside the measurement."
          ;; Turn away from the current facing so every sample changes it,
          ;; including after a respawn.
          (setq before-image (canvas) east (not (equal (actor :facing) "e")))
+         (cl-incf invoked)
          (pcase operation
            ('drive (setq key (if east "<right>" "<left>") expected (if east "e" "w")))
            ('drive-fire (setq key (if east "<right> f" "<left> f") expected (if east "e" "w")
@@ -164,7 +168,7 @@ are renewed through public actions in readiness, outside the measurement."
                 ('drive-fire (and (equal expected (actor :facing)) (= expected-shots (actor :shots))))
                 ('fire (= expected-shots (actor :shots))))))
        :verify (lambda ()
-                 (if (and (eq operation 'drive-fire) (null paint-gaps))
+                 (if (and (eq operation 'drive-fire) (> invoked 1) (null paint-gaps))
                      "No continuous redraw evidence"
                    (and (not (etaf-gamekit-last-error session))
                         (etaf-host-ref-size runtime 'tanks-board) t)))
