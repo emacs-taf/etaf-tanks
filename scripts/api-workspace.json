@@ -27,6 +27,10 @@
     "entry": "etaf-desktop",
     "url": "https://github.com/emacs-taf/etaf-desktop.git"
   },
+  "etaf-gamekit": {
+    "entry": "etaf-gamekit",
+    "url": "https://github.com/emacs-taf/etaf-gamekit.git"
+  },
   "etaf-playground": {
     "entry": "etaf-playground",
     "url": "https://github.com/emacs-taf/etaf-playground.git"
@@ -34,9 +38,5 @@
   "etaf-ui": {
     "entry": "etaf-ui",
     "url": "https://github.com/emacs-taf/etaf-ui.git"
-  },
-  "etaf-gamekit": {
-    "entry": "etaf-gamekit",
-    "url": null
   }
 }
