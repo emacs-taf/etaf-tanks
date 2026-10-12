@@ -14,7 +14,10 @@
 
 (defun etaf-tanks-benchmark--battle (session counter)
   "Keep SESSION in a live, unpaused battle; return non-nil once it is.
-COUNTER is a one-element list numbering the battles begun, which seeds them."
+A battle is live while its phase is play, the player's tank is on the
+field and the base stands; after the base falls, input is ignored until
+the lost phase ends and a new battle begins.  COUNTER is a one-element
+list numbering the battles begun, which seeds them."
   (let ((phase (etaf-gamekit-view session :phase)) (hud (etaf-gamekit-view session :hud)))
     (cond
      ((member phase '("menu" "cleared" "over"))
@@ -24,7 +27,7 @@ COUNTER is a one-element list numbering the battles begun, which seeds them."
                                  :stage 20 :difficulty "hard" :seed (cl-incf (car counter))))
       nil)
      ((eq t (etaf-gamekit-view session :paused)) (etaf-gamekit-action session "pause") nil)
-     (t (and (equal phase "play") (eq t (plist-get hud :alive)))))))
+     (t (and (equal phase "play") (eq t (plist-get hud :alive)) (eq t (plist-get hud :base)))))))
 
 (defun etaf-tanks-benchmark--images (runtime buffer)
   "Read the image displays actually published inside the battlefield."
