@@ -761,6 +761,7 @@ GRAPHIC shows native frames from a private directory the instance owns."
                   ('editor (etaf-view (etaf-tanks--editor-panel
                                        :draft (etaf-tanks--ui-draft ui) :brush (etaf-tanks--ui-brush ui)
                                        :brush-size (etaf-tanks--ui-brush-size ui) :pen (etaf-tanks--ui-pen ui)
+                                       :history (etaf-tanks--ui-history ui)
                                        :map-error map-error :dirty (etaf-tanks--ui-dirty ui)
                                        :on-change (lambda (index value)
                                                     (let ((draft (copy-sequence (etaf-value (etaf-tanks--ui-draft ui)))))
@@ -796,6 +797,8 @@ GRAPHIC shows native frames from a private directory the instance owns."
                                                              (etaf-tanks--editor-load ui)))
                                        :on-close (lambda () (etaf-tanks--editor-close ui))
                                        :on-brush (lambda (brush) (etaf-tanks--editor-brush ui brush))
+                                       :on-paint (lambda () (etaf-tanks--editor-paint ui))
+                                       :on-undo (lambda () (etaf-tanks--editor-undo ui))
                                        :on-size (lambda ()
                                                   (setf (etaf-value (etaf-tanks--ui-brush-size ui)) (- 3 (etaf-value (etaf-tanks--ui-brush-size ui))))
                                                   (etaf-tanks--editor-sync ui))

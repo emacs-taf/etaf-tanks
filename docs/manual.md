@@ -107,6 +107,12 @@ base `H` (exactly one), the player start `P` (exactly one) and one to four
 enemy spawns `E`. Lines beginning with `;` are comments; files over 64 KiB are
 rejected. The menu preview reports a map's defects before it can be played.
 
+The right-hand painting tools show the editing keys without opening Help.
+Move the yellow cursor with the arrows, choose a brush with 1–9, then press
+`F` or click **绘制 · F** to paint. Choosing a brush alone does not paint.
+**撤销 · U** undoes a change and is disabled when there is nothing to undo.
+The **连续：开/关 · D** button shows whether cursor movement also paints.
+
 The editor paints with 1×1 or 2×2 brushes, undoes strokes, edits the name and
 enemy counts, test-plays the draft (M returns to the editor) and saves into the
 map directory, asking before overwriting a file.

@@ -98,11 +98,12 @@ removes the whole mark."
   "Return BRUSH's display name."
   (cadr (assq brush etaf-tanks--brushes)))
 
-(etaf-define-component etaf-tanks--editor-panel (&key draft brush brush-size pen map-error dirty on-change on-name on-resize
-                                                       on-save on-save-as on-test on-new on-open on-close on-brush on-size on-pen)
-  "Edit DRAFT's header and choose painting tools.
-DRAFT, BRUSH, BRUSH-SIZE, PEN, MAP-ERROR and DIRTY are reactive sources; the
-callbacks own every change."
+(etaf-define-component etaf-tanks--editor-panel (&key draft brush brush-size pen history map-error dirty on-change on-name on-resize
+                                                       on-save on-save-as on-test on-new on-open on-close on-brush on-size on-pen
+                                                       on-paint on-undo)
+  "Edit DRAFT's header and paint with visible controls and key guidance.
+DRAFT, BRUSH, BRUSH-SIZE, PEN, HISTORY, MAP-ERROR and DIRTY are reactive
+sources; the callbacks own every change."
   :view
   (column :ref 'tanks-editor :width '(ch 30) :item-gap '(lh 1)
     (column
@@ -134,16 +135,21 @@ callbacks own every change."
                                     (format "%d×%d" (etaf-value brush-size) (etaf-value brush-size)))
                                   (if (etaf-value pen) " · 连续" ""))
                     :variant 'muted))
+      (etaf-label :text "方向键移动黄色框")
+      (etaf-label :text "1–9 换画笔，再按 F 绘制")
       (grid :grid-template-columns '((fr 1) (fr 1) (fr 1)) :gap '((lh 0) (ch 1)) :width 'stretch
         (etaf-button :for (entry etaf-tanks--brushes) :key (car entry)
                      :ref (intern (format "tanks-brush-%s" (nth 2 entry)))
                      :label (format "%s %s" (nth 2 entry) (cadr entry))
                      :variant (if (eq (car entry) (etaf-value brush)) 'secondary 'ghost)
                      :on-press (lambda () (funcall on-brush (car entry)))))
-      (row :item-gap '(ch 1)
-        (etaf-button :label "B 笔刷大小" :ref 'tanks-brush-size :variant 'ghost :on-press on-size)
-        (etaf-button :label (if (etaf-value pen) "D 停止连续" "D 连续绘制") :ref 'tanks-pen :variant 'ghost
-                     :on-press on-pen)))
+      (grid :grid-template-columns '((fr 1) (fr 1)) :gap '((lh 0) (ch 1)) :width 'stretch
+        (etaf-button :label "绘制 · F" :ref 'tanks-map-paint :on-press on-paint)
+        (etaf-button :label "撤销 · U" :ref 'tanks-map-undo :variant 'secondary
+                     :disabled (not (etaf-value history)) :on-press on-undo)
+        (etaf-button :label "笔刷大小 · B" :ref 'tanks-brush-size :variant 'ghost :on-press on-size)
+        (etaf-button :label (if (etaf-value pen) "连续：开 · D" "连续：关 · D") :ref 'tanks-pen
+                     :variant (if (etaf-value pen) 'secondary 'ghost) :on-press on-pen)))
     (etaf-alert :if (etaf-value map-error) :title "暂不可玩" :message (or (etaf-value map-error) "") :variant 'warning)
     (grid :grid-template-columns '((fr 1) (fr 1)) :gap '((lh 0) (ch 1)) :width 'stretch
       (etaf-button :label "试玩 · P" :ref 'tanks-map-test :disabled (and (etaf-value map-error) t) :on-press on-test)
@@ -151,8 +157,7 @@ callbacks own every change."
       (etaf-button :label "另存为" :ref 'tanks-map-save-as :variant 'ghost :on-press on-save-as)
       (etaf-button :label "新建" :ref 'tanks-map-new :variant 'ghost :on-press on-new)
       (etaf-button :label "打开" :ref 'tanks-map-open :variant 'ghost :on-press on-open)
-      (etaf-button :label "返回 · M" :ref 'tanks-map-close :variant 'ghost :on-press on-close))
-    (etaf-label :text "方向键移动 · F 绘制 · U 撤销" :variant 'muted)))
+      (etaf-button :label "返回 · M" :ref 'tanks-map-close :variant 'ghost :on-press on-close))))
 
 (provide 'etaf-tanks-editor)
 ;;; etaf-tanks-editor.el ends here

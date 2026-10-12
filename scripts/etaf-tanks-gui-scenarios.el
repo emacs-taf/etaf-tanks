@@ -39,7 +39,7 @@ restored after success or failure.  Confirmations are answered with y under
          (etaf-tanks-progress-file (expand-file-name "progress.eld" root))
          (use-short-answers t)
          (messages (with-current-buffer (messages-buffer) (point-max)))
-         session runtime saved)
+         session runtime saved frame-before)
     (unwind-protect
         (cl-labels
             ((ready () (and session (eq (etaf-gamekit-status session) 'ready)
@@ -160,7 +160,26 @@ restored after success or failure.  Confirmations are answered with y under
               (key "pause-final" "p" (lambda () (eq t (view :paused))))
               (key "leave-final" "m" (lambda () (equal (phase) "menu")))
               (key "editor" "e" (lambda () (equal (phase) "edit")) t)
-              (key "paint" "<right> <right> <down> 3 f" (lambda () (let ((cursor (view :editor))) (and (eql (plist-get cursor :x) 2) (eql (plist-get cursor :y) 1)))) t)
+              (key "locate-paint" "<right> <right> <down> 3"
+                   (lambda () (let ((cursor (view :editor)))
+                                (and (eql (plist-get cursor :x) 2) (eql (plist-get cursor :y) 1)))))
+              (action "paint-button"
+                      (lambda ()
+                        (setq frame-before (plist-get (view :frame) :id))
+                        (etaf-dispatch-event runtime 'tanks-map-paint 'press))
+                      (lambda () (> (plist-get (view :frame) :id) frame-before)) t)
+              (action "undo-paint"
+                      (lambda ()
+                        (setq frame-before (plist-get (view :frame) :id))
+                        (etaf-dispatch-event runtime 'tanks-map-undo 'press))
+                      (lambda () (> (plist-get (view :frame) :id) frame-before)) t)
+              (action "paint-key"
+                      (lambda () (setq frame-before (plist-get (view :frame) :id)) (keys "f"))
+                      (lambda () (> (plist-get (view :frame) :id) frame-before)) t)
+              (action "continuous-on" (lambda () (etaf-dispatch-event runtime 'tanks-pen 'press))
+                      (lambda () (string-match-p "连续：开" (text))) t)
+              (action "continuous-off" (lambda () (etaf-dispatch-event runtime 'tanks-pen 'press))
+                      (lambda () (string-match-p "连续：关" (text))) t)
               (key "discard-edit" "m y" (lambda () (equal (phase) "menu")))
               (action "stage-tally" #'fight (lambda () (equal (phase) "cleared")) t)
               (action "defeat"

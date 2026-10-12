@@ -11,7 +11,7 @@
     {"name": "etaf-tanks-snapshots-restore-paused-with-atomic-rejection", "file": "tests/etaf-tanks-tests.el", "purpose": "Snapshots restore the battle paused while malformed or missing files preserve it."},
     {"name": "etaf-tanks-battles-are-independent", "file": "tests/etaf-tanks-tests.el", "purpose": "One running instance cannot advance a second paused battlefield."},
     {"name": "etaf-tanks-keys-drive-aim-fire-and-pause-a-campaign", "file": "tests/etaf-tanks-tests.el", "purpose": "The game metadata and visible title identify 坦克大战; the stage select starts a campaign that documented keys drive, aim, fire, pause and leave."},
-    {"name": "etaf-tanks-editor-paints-saves-and-test-plays", "file": "tests/etaf-tanks-tests.el", "purpose": "The editor paints and saves a custom map that test play and the catalog use."},
+    {"name": "etaf-tanks-editor-paints-saves-and-test-plays", "file": "tests/etaf-tanks-tests.el", "purpose": "The editor exposes key guidance, button and keyboard painting, undo and continuous-mode state, then saves a custom map used by test play and the catalog."},
     {"name": "etaf-tanks-themes-and-resize-preserve-paused-battle", "file": "tests/etaf-tanks-tests.el", "purpose": "Appearance and resizing preserve the battlefield, state and keyboard focus."}
   ]
 }
