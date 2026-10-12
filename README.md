@@ -10,7 +10,7 @@ clock, shovel, star, grenade and extra-tank bonuses.
 A headless [Godot](https://godotengine.org) world owns the rules, the fixed
 simulation clock and the renderer; this application owns the stage select, the
 battle panel, the editor, the settings and the launcher. It is an independent
-[GameKit](https://forgejo.vhkd.top/emacs-taf/etaf-gamekit) application. All
+[GameKit](https://github.com/emacs-taf/etaf-gamekit) application. All
 artwork and stages are original.
 
 ![The stage select in the light palette](examples/screenshot-light.png)
@@ -43,12 +43,12 @@ artwork and stages are original.
 ## Installation
 
 ```sh
-git clone https://forgejo.vhkd.top/emacs-taf/ecss.git
-git clone https://forgejo.vhkd.top/emacs-taf/ebox.git
-git clone https://forgejo.vhkd.top/emacs-taf/etaf.git
-git clone https://forgejo.vhkd.top/emacs-taf/etaf-ui.git
-git clone https://forgejo.vhkd.top/emacs-taf/etaf-gamekit.git
-git clone https://forgejo.vhkd.top/emacs-taf/etaf-tanks.git
+git clone https://github.com/emacs-taf/ecss.git
+git clone https://github.com/emacs-taf/ebox.git
+git clone https://github.com/emacs-taf/etaf.git
+git clone https://github.com/emacs-taf/etaf-ui.git
+git clone https://github.com/emacs-taf/etaf-gamekit.git
+git clone https://github.com/emacs-taf/etaf-tanks.git
 make -C etaf-gamekit engine
 ```
 
@@ -105,7 +105,7 @@ certify foreground input latency.
 - [坦克大战 manual](docs/manual.md) — rules, keys, settings, map format,
   editor, snapshots and display.
 - [Package entry](etaf-tanks.el) — the supported API inventory.
-- [GameKit](https://forgejo.vhkd.top/emacs-taf/etaf-gamekit) — the shared game
+- [GameKit](https://github.com/emacs-taf/etaf-gamekit) — the shared game
   framework, its adapters and backend installation.
 
 ## License
