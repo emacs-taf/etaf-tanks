@@ -164,10 +164,12 @@ window cannot hold it, the block shrinks in 2-pixel steps down to 10 pixels,
 and below that the window clips the board. In battle a compact panel moves
 below the board when that allows larger blocks. Each frame is divided into
 strips one text line tall, and only the strips that changed are encoded and
-replaced, so Emacs decodes just those lines. After a resize the previous
-frame stays visible until Godot has drawn one for the new size. Palette
-changes affect presentation only and never restart or pause the battle. Text
-displays show a two-character-per-block grid instead.
+replaced, so Emacs decodes just those lines. The frame rate paces steady
+animation; a frame answering a drive, aim, fire or pause key is drawn on the
+next 60 Hz simulation step instead of waiting for the next paced frame. After a
+resize the previous frame stays visible until Godot has drawn one for the new
+size. Palette changes affect presentation only and never restart or pause the
+battle. Text displays show a two-character-per-block grid instead.
 
 Correctness lives in `tests/acceptance.json`, which runs the real Godot backend
 through public game and UI interfaces. `scripts/etaf-tanks-gui-scenarios.el`

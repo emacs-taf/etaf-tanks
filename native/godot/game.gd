@@ -5,7 +5,9 @@ extends Node
 ## stdout belongs to GameKit. Rules live in battle.gd, map text in
 ## stage_map.gd, artwork in art.gd and frame strips in canvas.gd. The
 ## simulation advances on the fixed physics clock; frames are composed only
-## when something changed, and only changed strips are written.
+## when something changed, and only changed strips are written. The frame
+## rate paces steady animation; a frame answering player input is drawn on
+## the next physics step instead of waiting for the next paced frame.
 
 const StageMap := preload("res://stage_map.gd")
 const Battle := preload("res://battle.gd")
@@ -27,6 +29,7 @@ var canvas = Canvas.new()
 var directory := ""
 var frame_id := 0
 var dirty := true
+var prompt := false
 var since_frame := 1.0
 var settings := {"speed": 1.0, "player_speed": 1.0, "hold": 0.28, "repeat": 0.12, "latch": false, "frame_rate": 60}
 var events: Array = []
@@ -64,7 +67,7 @@ func _physics_process(delta: float) -> void:
 				dirty = true
 				if battle.finished():
 					_conclude()
-	if dirty and not directory.is_empty() and since_frame >= 1.0 / settings.frame_rate - 0.002:
+	if dirty and not directory.is_empty() and (prompt or since_frame >= 1.0 / settings.frame_rate - 0.002):
 		_render()
 
 func _render() -> void:
@@ -89,6 +92,7 @@ func _render() -> void:
 		_event("画面写入失败", failure, "danger")
 		directory = ""
 	dirty = false
+	prompt = false
 	since_frame = 0.0
 
 func _event(heading: String, detail: String, kind := "info") -> void:
@@ -222,6 +226,7 @@ func command(operation: String, args: Dictionary) -> String:
 			if paused:
 				battle.stop()
 			dirty = true
+			prompt = true
 			return ""
 		"drive", "aim":
 			var direction: int = Battle.FACINGS.find(args.get("direction"))
@@ -235,6 +240,7 @@ func command(operation: String, args: Dictionary) -> String:
 				else:
 					battle.aim(direction)
 				dirty = true
+				prompt = true
 			return ""
 		"stop":
 			if battle != null:
@@ -243,8 +249,9 @@ func command(operation: String, args: Dictionary) -> String:
 		"fire":
 			if battle == null or phase in ["menu", "edit"]:
 				return "当前不在战斗中"
-			if phase == "play" and not paused and battle.outcome != "lost":
-				battle.fire(battle.player)
+			if phase == "play" and not paused and battle.outcome != "lost" and battle.fire(battle.player):
+				dirty = true
+				prompt = true
 			return ""
 		"save", "load":
 			if not args.get("path") is String or args.path.is_empty():

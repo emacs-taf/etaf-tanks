@@ -60,7 +60,8 @@
 ;;
 ;; Variable: etaf-tanks-frame-rate
 ;; Battlefield frames per second on graphic displays: 30 (default) or 60.
-;; The simulation clock is unaffected.
+;; The simulation clock is unaffected, and frames answering drive, aim, fire
+;; or pause keys are drawn on the next simulation step at either rate.
 ;;
 ;; Variable: etaf-tanks-board-size
 ;; Preferred battlefield block size on graphic displays: small, medium
