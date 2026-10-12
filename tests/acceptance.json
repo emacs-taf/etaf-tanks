@@ -3,15 +3,15 @@
   "load_path": [".", "../../etaf-gamekit", "../../etaf-ui", "../../etaf", "../../ebox", "../../ecss"],
   "support": [],
   "cases": [
-    {"name": "etaf-tanks-drive-and-fire-accept-simultaneous-input", "file": "tests/etaf-tanks-tests.el", "purpose": "A shot is not lost behind a drive command, and repeated input cannot bypass native reload."},
-    {"name": "etaf-tanks-world-runs-without-input-and-pauses-atomically", "file": "tests/etaf-tanks-tests.el", "purpose": "Physics and enemy AI advance independently of commands and freeze while paused."},
-    {"name": "etaf-tanks-physics-stops-overlapping-armour", "file": "tests/etaf-tanks-tests.el", "purpose": "Swept tank collisions prevent the player from driving through another tank."},
-    {"name": "etaf-tanks-invalid-orders-preserve-paused-world", "file": "tests/etaf-tanks-tests.el", "purpose": "Invalid coordinates, directions and snapshot arguments preserve accepted state."},
-    {"name": "etaf-tanks-shells-stop-at-cover", "file": "tests/etaf-tanks-tests.el", "purpose": "A live projectile stops at cover instead of passing through walls."},
-    {"name": "etaf-tanks-native-controls-can-win-and-restart", "file": "tests/etaf-tanks-tests.el", "purpose": "Rendered controls fight autonomous enemies to victory and restart the battle."},
-    {"name": "etaf-tanks-enemies-can-end-an-unattended-battle", "file": "tests/etaf-tanks-tests.el", "purpose": "An unattended live battle can reach defeat without more player input."},
-    {"name": "etaf-tanks-snapshots-restore-paused-with-atomic-rejection", "file": "tests/etaf-tanks-tests.el", "purpose": "Snapshots restore positions and resources while malformed files preserve the match."},
-    {"name": "etaf-tanks-themes-and-resize-preserve-paused-battle", "file": "tests/etaf-tanks-tests.el", "purpose": "Appearance and resizing preserve the battlefield, state and keyboard focus."},
-    {"name": "etaf-tanks-battles-are-independent", "file": "tests/etaf-tanks-tests.el", "purpose": "One running instance cannot advance a second paused battlefield."}
+    {"name": "etaf-tanks-maps-are-validated-before-play", "file": "tests/etaf-tanks-tests.el", "purpose": "Previews report map defects and an invalid or undersized map cannot start a battle."},
+    {"name": "etaf-tanks-settings-and-difficulty-are-validated", "file": "tests/etaf-tanks-tests.el", "purpose": "Out-of-range settings are rejected and difficulty sets the starting lives."},
+    {"name": "etaf-tanks-losing-the-base-ends-the-battle", "file": "tests/etaf-tanks-tests.el", "purpose": "A shell reaching the eagle base loses the battle."},
+    {"name": "etaf-tanks-armored-enemies-take-four-hits", "file": "tests/etaf-tanks-tests.el", "purpose": "An armored tank loses one armor per hit and is tallied only when destroyed."},
+    {"name": "etaf-tanks-world-runs-without-input-and-pauses-atomically", "file": "tests/etaf-tanks-tests.el", "purpose": "Enemies advance on the native clock without commands and freeze while paused."},
+    {"name": "etaf-tanks-snapshots-restore-paused-with-atomic-rejection", "file": "tests/etaf-tanks-tests.el", "purpose": "Snapshots restore the battle paused while malformed or missing files preserve it."},
+    {"name": "etaf-tanks-battles-are-independent", "file": "tests/etaf-tanks-tests.el", "purpose": "One running instance cannot advance a second paused battlefield."},
+    {"name": "etaf-tanks-keys-drive-aim-fire-and-pause-a-campaign", "file": "tests/etaf-tanks-tests.el", "purpose": "The stage select starts a campaign that the documented keys drive, aim, fire, pause and leave."},
+    {"name": "etaf-tanks-editor-paints-saves-and-test-plays", "file": "tests/etaf-tanks-tests.el", "purpose": "The editor paints and saves a custom map that test play and the catalog use."},
+    {"name": "etaf-tanks-themes-and-resize-preserve-paused-battle", "file": "tests/etaf-tanks-tests.el", "purpose": "Appearance and resizing preserve the battlefield, state and keyboard focus."}
   ]
 }

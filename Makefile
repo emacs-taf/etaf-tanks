@@ -5,7 +5,7 @@ GAMEKIT_CACHE ?= $(if $(XDG_CACHE_HOME),$(XDG_CACHE_HOME),$(HOME)/.cache)/emacs-
 GODOT ?= $(GAMEKIT_CACHE)/bin/godot
 PROVIDER_ROOT ?= $(if $(wildcard ../etaf/etaf.el),..,../..)
 LOAD_PATH = -L . -L lisp -L $(PROVIDER_ROOT)/etaf-gamekit -L $(PROVIDER_ROOT)/etaf-ui -L $(PROVIDER_ROOT)/etaf -L $(PROVIDER_ROOT)/ebox -L $(PROVIDER_ROOT)/ecss -L $(PROVIDER_ROOT)/etaf/scripts
-SOURCES = lisp/etaf-tanks-theme.el lisp/etaf-tanks-model.el lisp/etaf-tanks-arena.el lisp/etaf-tanks-views.el lisp/etaf-tanks-app.el etaf-tanks.el tests/etaf-tanks-tests.el benchmarks/performance-scenarios.el scripts/etaf-tanks-gui-scenarios.el
+SOURCES = lisp/etaf-tanks-theme.el lisp/etaf-tanks-maps.el lisp/etaf-tanks-model.el lisp/etaf-tanks-board.el lisp/etaf-tanks-editor.el lisp/etaf-tanks-views.el lisp/etaf-tanks-app.el etaf-tanks.el tests/etaf-tanks-tests.el benchmarks/performance-scenarios.el scripts/etaf-tanks-gui-scenarios.el
 
 .PHONY: compile test check clean structure-check setup-hooks acceptance api-check native-check
 native-check:

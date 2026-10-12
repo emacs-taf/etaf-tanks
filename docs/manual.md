@@ -1,10 +1,10 @@
 # Iron Tide · 钢铁洪流
 
-Iron Tide runs an independent headless Godot world per game. Its native fixed
-physics clock owns continuous motion, swept collision, AStar pathfinding,
-projectiles, enemy pursuit and victory/defeat. The ETAF application owns the
-vector projection, light/dark palettes, native controls and file prompts.
-Requiring GameKit never loads or launches this game.
+Iron Tide is a Battle City style tank game. Each game runs an independent
+headless Godot world that owns the rules, a fixed simulation clock and the
+pixel-art renderer; the ETAF application owns the stage select, battle panel,
+map editor, settings, dialogs and file prompts. Requiring GameKit never loads
+or launches this game.
 
 ```elisp
 (add-to-list 'load-path "/path/to/etaf-games/etaf-tanks")
@@ -16,129 +16,155 @@ Install ETAF, etaf-ui and GameKit, including its Godot runtime, before opening.
 The bundled project is `native/godot/`, resolved relative to this package's own
 entry. The [entry Commentary](../etaf-tanks.el) documents the supported Lisp API.
 
-## Driving and combat
+## Rules
 
-The arena starts paused so you can inspect it before launching. After `P`,
-enemies and shells move without further input. The native simulation runs at
-60 physics ticks per second; the project requests changed observations at up
-to 60 Hz through GameKit's `observation_hz` setting. Physics, state publication
-and actual display refresh are different clocks, not a per-command turn system.
+Defend the eagle base at the bottom of the field and destroy every enemy tank
+of the stage. The battle is lost when an enemy shell (or your own) hits the
+base or when your last tank is destroyed. Enemies enter in batches from the
+spawn points at the top; only a limited number are on the field at once. The
+battle panel lists the tanks still waiting, your lives, score and firepower.
 
-| Input | Action |
-| --- | --- |
-| P / Start–Pause | Begin, freeze or resume the simulation; clear queued movement |
-| Arrow keys / driving buttons | Drive north, west, south or east; repeated input keeps driving |
-| Shift+arrow keys / aiming buttons | Aim in that direction without moving |
-| F / Fire | Fire when the cannon is loaded |
-| X / Stop | Cancel the player's route |
-| N / Restart | Restore the initial paused battle |
-| C-s / Save, C-o / Load | Pause and choose a local snapshot file |
-| T / Light–Dark | Switch the whole interface's palette |
-| F1 / Help | Pause and open the field manual |
-| Q | Close this instance |
+| Enemy | Behaviour | Points |
+| --- | --- | --- |
+| Basic | Slow | 100 |
+| Fast | Twice as fast | 200 |
+| Power | Fires fast shells | 300 |
+| Armored | Takes four hits; its colour shows the remaining armour | 400 |
 
-A player shell destroys one enemy tank; an enemy shell deals 20 damage. Walls
-block both traffic and shells, and tanks cannot overlap. All three enemy tanks
-must be destroyed to win; zero armour is defeat. There is no friendly fire.
-The player cannon reloads in 0.28 seconds, enemy cannons in 1.6 seconds. Holding
-F fires as the cannon becomes available. Driving and firing can be sent
-together without losing the shot. The native kernel accepts repeated fire
-during reload as a no-op; it never shortens the reload or creates extra shells.
+Enemies that flash red drop a bonus when destroyed (500 points when collected):
+the helmet shields your tank for 10 seconds, the clock freezes enemies for 10
+seconds, the shovel walls the base with steel for 20 seconds, the star upgrades
+your cannon, the grenade destroys every enemy on the field and the tank adds a
+life. Each star makes shells faster, then allows two shells in flight, then
+breaks steel; losing a tank resets the cannon. Every 20,000 points add a life.
+A new tank is shielded for 3 seconds.
 
-Each directional press gives one nearby destination. Key repeat is coalesced
-to the current segment and at most one next cell instead of accumulating an
-unbounded route. `etaf-tanks-open` pauses when its game buffer is no longer the
-selected buffer/window. Help and file input also pause first; dismissing them
-does not unexpectedly resume the battle. Close kills only this game's backend.
+A shell chips one quarter-block layer of brick across a tank's width; a
+three-star shell cuts two layers and also breaks steel. Water blocks tanks but
+not shells, forest hides tanks beneath it and ice makes tanks slide.
+
+Difficulty is easy (five lives, three enemies on the field), normal (three
+lives, four enemies) or hard (six enemies, faster spawns and fire, more armored
+upgrades). Later stages spawn and fire faster and put one more enemy on the
+field from stage 10. Clearing stage 20 continues with stage 1 at a higher loop
+level. Lives, score and firepower carry into the next stage; retrying restores
+the stage's opening resources.
+
+## Keys
+
+| Screen | Key | Action |
+| --- | --- | --- |
+| Menu | Arrows, Return, G | Choose a stage; start it |
+| Menu | E, N, D | Edit the selected map, create a new map, cycle difficulty |
+| Battle | Arrow keys | Drive |
+| Battle | Shift+arrow | Turn in place |
+| Battle | F, X | Fire; stop driving |
+| Battle | P, R, N, M | Pause or resume, retry the stage, next stage, return |
+| Battle | C-s, C-o | Save or load a snapshot through a file prompt |
+| Editor | Arrows, 1–9 | Move the cursor; choose a brush |
+| Editor | F, D, B, U | Paint, toggle continuous painting, brush size, undo |
+| Editor | P, C-s, M | Test-play, save the map, return to the menu |
+| Any | S, T, F1, Q | Settings, light/dark palette, rules and keys, close |
+
+Every key also has a button. Help, settings and file prompts pause a running
+battle first and dismissing them does not resume it. The game pauses when its
+buffer stops being the selected window's buffer. Retrying or leaving a running
+battle asks for confirmation; a paused battle is left immediately.
+
+## Settings
+
+`S` opens the settings, which take effect immediately: game speed and the
+player's tank speed (50–200 %), arrow-key sensitivity (follow the system key
+repeat, sensitive, standard or smooth), driving mode (drive while an arrow is
+held, or keep driving after one press until X or Shift+arrow) and the frame
+rate (30 or 60). *Save as default* stores them, with the difficulty, through
+Customize in the `etaf-tanks-*` variables listed in the Commentary.
+
+## Maps and the editor
+
+The campaign tab lists the twenty built-in stages with a ✓ on the ones cleared;
+`etaf-tanks-progress-file` records cleared stages and best scores per
+difficulty. The custom tab lists the maps in `etaf-tanks-map-directory`;
+*Import* opens any map file in the editor.
+
+A map is a UTF-8 text file:
+
+```
+name: Two Rivers
+enemies: 14 4 2 0
+map:
+EE..........EE..........EE
+...
+```
+
+`name:` is optional (1–24 characters). `enemies:` gives the basic, fast, power
+and armored counts (1–60 in total). The `map:` section has equal rows of 12–52
+columns by 12–40 rows; each character is a quarter of a tank: `.` ground,
+`#` brick, `@` steel, `~` water, `*` forest and `=` ice. 2×2 groups mark the
+base `H` (exactly one), the player start `P` (exactly one) and one to four
+enemy spawns `E`. Lines beginning with `;` are comments; files over 64 KiB are
+rejected. The menu preview reports a map's defects before it can be played.
+
+The editor paints with 1×1 or 2×2 brushes, undoes strokes, edits the name and
+enemy counts, test-plays the draft (M returns to the editor) and saves into the
+map directory, asking before overwriting a file.
 
 ## Snapshots and programmatic callers
 
-A definition can be started with `etaf-gamekit-start etaf-tanks-game`; the caller
-owns its buffer and uses `etaf-gamekit-close` to release it. Read the current
-world with `etaf-gamekit-observation`, or use `etaf-gamekit-view` in reactive
-views. Commands go through `etaf-gamekit-action`:
+A definition can be started with `etaf-gamekit-start etaf-tanks-game`; the
+caller owns its buffer and uses `etaf-gamekit-close` to release it. Read the
+current state with `etaf-gamekit-observation`, or `etaf-gamekit-view` in
+reactive views. Wait for `etaf-gamekit-status` to report `ready` before the
+first command. Commands go through `etaf-gamekit-action`:
 
-- `move` takes integer `:x`/`:y` describing one cardinal step.
-- `navigate` takes an integer destination `:x`/`:y` on the 21 × 13 arena.
-- `aim` takes `:direction` equal to `"n"`, `"e"`, `"s"` or `"w"`.
-- `fire`, `stop`, `pause` and `restart` take no arguments.
+- `begin` takes a map text `:map` and optional `:stage` (1–999),
+  `:difficulty` (`"easy"`, `"normal"`, `"hard"`), `:seed` and carried
+  `:lives`, `:score`, `:star` and `:next_life`.
+- `next` takes the following `:map` and `:stage` after a cleared stage and
+  carries lives, score and firepower; `restart` retries the current stage
+  with its opening resources.
+- `menu` previews an optional `:map`; `edit` previews `:map` with an editor
+  cursor at `:x`, `:y` and brush `:size` (1 or 2).
+- `drive` and `aim` take `:direction` (`"n"`, `"e"`, `"s"` or `"w"`); `fire`
+  and `stop` take no arguments.
+- `pause` toggles a running battle, or sets `:paused` to `t` or `:false`.
+- `settings` takes `:speed`, `:player_speed`, `:hold`, `:repeat`, `:latch` and
+  `:frame_rate`; `display` takes the frame `:directory` and `:theme`.
 - `save` and `load` take an explicit `:path` string.
 
-Movement and firing require an active, nonterminal battle. A rejected order
-leaves accepted state unchanged while paused; during a live battle, physics
-continues independently of the rejected input. Rejections are available through
-`etaf-gamekit-last-error`. A transport failure requires closing that instance
-and starting a new one before loading a snapshot.
+The observation reports `phase` (`menu`, `edit`, `intro`, `play`, `cleared`
+or `over`), `paused`, the map `size`, the battle `hud`, the player `actor` and
+the end-of-stage `tally`; without a frame directory it also reports the
+`world` grid of units, shells and bonuses. A rejected command reports its
+reason through `etaf-gamekit-last-error` and leaves the state unchanged.
 
-Wait for `etaf-gamekit-status` to report `ready` before the first command.
-Subsequent inputs may overlap under GameKit's bounded outstanding-request
-contract. The opening example returns the instance immediately; it does not
-block Emacs waiting for the external engine. Commands acknowledge asynchronously.
+Snapshots are written only to explicit paths, atomically. Loading validates the
+complete file against its map before replacing the battle, resumes paused and
+clears in-flight shells and spawns. Malformed files leave the current battle
+untouched. Closing never saves.
 
-Snapshots are opaque application files, atomically published after serialization.
-They retain tank positions and headings, armour, reload timers, kills, shots,
-time and the terminal result. Loading validates the complete candidate before
-replacing the world, remains paused, and clears routes, in-flight shells and
-transient flashes. Malformed or oversized files leave the existing battle
-untouched. No automatic save occurs on close.
+## Display
 
-## Display and appearance
+On graphic displays Godot renders each frame at the original console
+resolution (8-pixel blocks) and Emacs scales it by a whole factor without
+smoothing, half steps on high-density screens. The board takes the largest
+scale that fits; in battle a compact panel moves below the board when that
+allows a larger scale. Below the smallest scale the board stays at scale 1
+and the window clips it. Palette changes affect presentation only and never
+restart or pause the battle. Text displays show a two-character-per-block
+grid instead.
 
-`etaf-tanks-appearance` selects the initial `auto`, `light` or `dark` palette.
-Auto follows the opening frame; every instance can switch independently.
-The graphical arena separates immutable terrain from dynamic tank and shell
-artwork. Small retained image regions project only the objects intersecting
-them, so movement does not decode or repaint the entire map. Decorative regions
-use ETAF's public image Hosts and standard text rows, without per-region grid
-interaction state. Tracks, hulls, barrels, projectiles and impacts remain
-derived from native state. Terminals use text cells as a
-fallback.
+Correctness lives in `tests/acceptance.json`, which runs the real Godot backend
+through public game and UI interfaces. `scripts/etaf-tanks-gui-scenarios.el`
+drives the application in a dedicated graphical frame with exactly one visible
+frame: load it with `scripts/emacs-gui-verifier.el` from ETAF and call
+`etaf-tanks-gui-run` with an evidence directory. It covers both palettes
+across the viewport matrix, battle keys, snapshot prompts, the editor, a
+cleared stage and a defeat.
 
-The graphical arena has twenty text rows and an aspect-correct character width
-chosen once when opened: with a 7 × 16 pixel font it is 518 × 320 pixels.
-Window resizing reflows surrounding controls, not the arena or sprites. A short
-window removes vertical gaps; below the complete table's minimum, clipping and
-native scrolling are deliberate. Palette changes affect presentation only;
-the running backend does not restart and is not paused by a theme switch.
-
-Correctness lives in `tests/acceptance.json`. The real-backend scenarios cover
-independent physics, blocking, ammunition, victory, defeat, restart, snapshots,
-themes and independent instances. `scripts/etaf-tanks-gui-scenarios.el` drives
-the application in a dedicated existing frame through native keys, real file
-prompts, live combat and both themes across the viewport matrix.
-
-Use the enclosing workspace's performance driver with this application's
-`benchmarks/performance-scenarios.el`. The `etaf-tanks.keys.*` workloads measure
-native Emacs command-loop input, asynchronous native response, committed
-canvas changes and the driver's final redisplay. Driving measures the first
-visible movement in a fresh live arena, not completion of the travel animation.
-Aiming and loaded shots use continuous live battles with autonomous enemies.
-The firing fixture aims at aligned raiders during readiness and waits for the
-normal reload before timing F; it plays through victory and restarts a
-terminal battle rather than repeatedly shooting one empty direction until
-killed. Preparation aiming is not included in the separate F latency. A projectile
-that could end the match is allowed to resolve before admitting another shot;
-physics and enemies keep running. Readiness also waits for the displayed player
-summary to match the latest accepted state. A winning shot is a valid completion,
-recorded in the outcome together with cumulative victories and defeats. Native input
-rejections fail promptly with their actual reason rather than waiting for a
-visual change that cannot occur. Outcomes record the battle number, position,
-shots, elapsed game time and armour. Restart and cooldown time are not claimed
-as firing latency.
-
-`etaf-tanks.keys.drive-fire` alternates direction and fires in the same command
-loop while enemies and shells keep running. It renews the clear corridor after
-four live seconds, outside the measured gesture. Emacs' `pre-redisplay-functions`
-records `moving-redraw-gaps-ms`: cumulative intervals between changed player
-positions and image displays offered to redisplay during each moving segment,
-including harness overhead. These are redraw opportunities, not completed
-screen-presentation timestamps. A stationary interval is not counted as a
-missed moving frame. Use the last outcome of each series to avoid counting
-cumulative data twice. Input latency and redraw cadence are separate checks;
-neither the requested physics rate nor a fast first response proves smooth
-continued motion. Actual presentation requires the separate GUI capture gate.
-Separate theme, pause and resize workloads remain available.
-
-Background GUI results do not certify foreground operating-system input
-latency. Screenshots and line-height assertions are separate from timings;
-all GC and slow samples stay in the evidence.
+The workspace performance driver runs `benchmarks/performance-scenarios.el`.
+The `etaf-tanks.keys.*` workloads measure driving, aiming, firing and
+driving while firing on the largest stage on hard: native key input, the
+Godot response and the changed board image offered to redisplay. Theme, pause
+and resize workloads are measured separately. Background GUI results do not
+certify foreground operating-system input latency.

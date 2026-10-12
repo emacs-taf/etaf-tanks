@@ -5,6 +5,19 @@
 (require 'etaf-tanks)
 (require 'emacs-gui-verifier)
 
+(defconst etaf-tanks-gui--duel
+  "name: 装甲对决\nenemies: 0 0 0 1\nmap:
+@@@@EE@@@@@@\n@@@@EE@@@@@@\n@@@@..@@@@@@\n@@@@..@@@@@@\n@@@@..@@@@@@\n@@@@..@@@@@@
+@@@@..@@@@@@\n@@@@..@@@@@@\n@@@@PP@@@@@@\n@@@@PP@@@@@@\n@@@@@@@@@@@@\n@@@@@@@@@@@@
+@@@@@@@@HH@@\n@@@@@@@@HH@@\n"
+  "One armored enemy down a closed corridor, for a reachable stage tally.")
+
+(defconst etaf-tanks-gui--sentry
+  "name: 守卫\nenemies: 1 0 0 0\nmap:
+EE@@@@@@@@@@\nEE@@@@@@@@@@\n@@@@@@@@@@@@\n@@@@@@@@@@@@\n@@@@@@@@@@@@\n@@@@@@@@@@@@
+@@@@@@@@@@@@\n@@@@@@@@@@@@\n@@@@PP@@@@@@\n@@@@PP@@@@@@\n@@@@HH@@@@@@\n@@@@HH@@@@@@\n"
+  "A player parked above the base, for a reachable defeat.")
+
 (defun etaf-tanks-gui--size (width rows)
   "Resize the dedicated frame toward WIDTH pixels and ROWS content lines."
   (let ((chrome (- (frame-pixel-height) (window-body-height nil t))))
@@ -12,65 +25,75 @@
     (set-frame-size nil width (+ chrome (* rows (frame-char-height))) t)))
 
 (defun etaf-tanks-gui-run (directory)
-  "Exercise native input and both palettes in fresh evidence DIRECTORY.
-Run in an existing dedicated graphical frame. The owned battle, temporary
-snapshot and frame geometry are cleaned up after success or failure."
+  "Exercise every screen, input and both palettes; record evidence in DIRECTORY.
+Run in an existing dedicated graphical frame.  Maps, progress and the
+snapshot live in a temporary directory; the instance and frame geometry are
+restored after success or failure.  Confirmations are answered with y under
+`use-short-answers', which also suits configurations aliasing `yes-or-no-p'."
   (unless (display-graphic-p) (error "A graphical frame is required"))
-  (let ((size (cons (frame-pixel-width) (frame-pixel-height)))
-        (fullscreen (frame-parameter nil 'fullscreen))
-        (file (make-temp-file "iron-tide-gui-"))
-        session runtime arena saved)
+  (let* ((size (cons (frame-pixel-width) (frame-pixel-height)))
+         (fullscreen (frame-parameter nil 'fullscreen))
+         (root (make-temp-file "iron-tide-gui-" t))
+         (file (expand-file-name "battle.json" root))
+         (etaf-tanks-map-directory (file-name-as-directory (expand-file-name "maps" root)))
+         (etaf-tanks-progress-file (expand-file-name "progress.eld" root))
+         (use-short-answers t)
+         (messages (with-current-buffer (messages-buffer) (point-max)))
+         session runtime saved)
     (unwind-protect
         (cl-labels
             ((ready () (and session (eq (etaf-gamekit-status session) 'ready)
                             (etaf-host-ref-size runtime 'tanks-board)))
-             (state () (etaf-gamekit-view session :player))
+             (view (key) (etaf-gamekit-view session key))
+             (phase () (view :phase))
+             (actor (key) (plist-get (view :actor) key))
              (text () (with-current-buffer (etaf-gamekit-buffer session)
                         (buffer-substring-no-properties (point-min) (point-max))))
-             (press (ref) (etaf-focus runtime ref) (etaf-activate runtime))
+             (timer-errors ()
+               (with-current-buffer (messages-buffer)
+                 (save-excursion (goto-char (min messages (point-max)))
+                                 (re-search-forward "^Error running timer" nil t))))
+             (keys (sequence)
+               (switch-to-buffer (etaf-gamekit-buffer session))
+               (execute-kbd-macro (if (stringp sequence) (kbd sequence) sequence)))
+             (prompt (command)
+               (keys (vconcat (kbd command) (kbd "C-a C-k") (string-to-vector file) (kbd "RET"))))
              (action (id run settled &optional screenshot)
                (etaf-gui-verifier-action-create
                 :id id :screenshot screenshot :settle-timeout 20
                 :execute (lambda (_context) (funcall run))
                 :settled-p (lambda (_context) (and (ready) (funcall settled)))))
-             (key (id keys settled &optional screenshot)
-               (action id (lambda () (switch-to-buffer (etaf-gamekit-buffer session))
-                                     (execute-kbd-macro (kbd keys))) settled screenshot))
+             (key (id sequence settled &optional screenshot)
+               (action id (lambda () (keys sequence)) settled screenshot))
              (resize-actions (theme)
                (mapcar (lambda (spec)
                          (action (format "%s-%s" theme (car spec))
                                  (lambda () (etaf-tanks-gui--size (cadr spec) (caddr spec)))
-                                 (lambda () (= (cdr (etaf-runtime-viewport runtime)) (window-body-height))) t))
-                       '((wide 1200 44) (standard 900 42) (narrow 600 38)
-                         (short 900 31) (minimum-clipping 420 22))))
+                                 (lambda () (fits-viewport (eq (car spec) 'minimum-clipping))) t))
+                       '((wide 1400 50) (standard 1100 44) (narrow 760 44)
+                         (short 1100 32) (minimum-clipping 520 24))))
+             ;; The Runtime follows the resized window, and above the minimum
+             ;; the whole table fits it without clipping.
+             (fits-viewport (clipped)
+               (let ((viewport (etaf-runtime-viewport runtime))
+                     (bounds (etaf-host-ref-size runtime 'tanks-root)))
+                 (and (= (cdr viewport) (window-body-height))
+                      (<= (abs (- (car viewport) (window-body-width nil t))) (* 2 (frame-char-width)))
+                      bounds (or clipped (<= (car bounds) (car viewport))))))
+             (begin (map)
+               (etaf-gamekit-action session "begin" (list :map map :stage 1 :difficulty "easy" :seed 5))
+               (let ((end (+ (float-time) 6)))
+                 (while (and (< (float-time) end) (not (and (ready) (equal (phase) "play"))))
+                   (accept-process-output nil 0.01))))
              (fight ()
-               (etaf-tanks-gui--size 900 42)
-               (etaf-gamekit-action session "restart")
-               (let ((end (+ (float-time) 4)))
-                 (while (and (< (float-time) end) (not (ready))) (accept-process-output nil 0.01)))
-               (unless (ready) (error "Restart did not acknowledge"))
-               (press 'tanks-pause)
-               (let ((end (+ (float-time) 18)))
-                 (while (and (< (float-time) end)
-                             (not (eq t (plist-get (state) :won)))
-                             (not (eq t (plist-get (state) :lost))))
-                   (when (ready)
-                     (let* ((world (etaf-gamekit-view session :world))
-                            (entities (plist-get world :entities)) (me (car entities)) direction)
-                       (dolist (enemy (cdr entities))
-                         (let ((dx (- (plist-get enemy :px) (plist-get me :px)))
-                               (dy (- (plist-get enemy :py) (plist-get me :py))))
-                           (cond ((< (abs dx) 0.3) (setq direction (if (< dy 0) "n" "s")))
-                                 ((< (abs dy) 0.3) (setq direction (if (< dx 0) "w" "e"))))))
-                       (when direction
-                         (if (not (equal direction (plist-get (state) :facing)))
-                             (press (intern (concat "tanks-aim-" direction)))
-                           (unless (plist-get (etaf-runtime-host-props-for runtime 'tanks-fire) :disabled)
-                             (press 'tanks-fire))))))
-                   (accept-process-output nil 0.015)))))
+               (begin etaf-tanks-gui--duel)
+               (let ((end (+ (float-time) 20)))
+                 (while (and (< (float-time) end) (not (member (phase) '("cleared" "over"))))
+                   (when (and (ready) (eq t (actor :can_fire))) (keys "f"))
+                   (accept-process-output nil 0.05)))))
           (etaf-gui-verifier-run
            (etaf-gui-verifier-scenario-create
-            :name "iron-tide" :claim "Real-time physics, native controls, dual-theme appearance and resize"
+            :name "iron-tide" :claim "Stage select, battle, editor, dialogs, dual themes and resize"
             :initialize
             (lambda (context)
               (let ((etaf-tanks-appearance 'light)) (setq session (etaf-tanks-open)))
@@ -79,59 +102,65 @@ snapshot and frame geometry are cleaned up after success or failure."
               (message nil))
             :invariants
             (lambda (_context)
-              (let ((current (etaf-host-ref-size runtime 'tanks-board)))
-                (unless arena (setq arena current))
-                (append
-                 (list (etaf-gui-verifier-assert "Arena keeps fixed metrics" (equal arena current))
-                       (etaf-gui-verifier-assert "No backend or UI error" (not (etaf-gamekit-last-error session))))
-                 (etaf-gui-verifier-line-height-assertions (etaf-gamekit-buffer session)))))
+              (append
+               (list (etaf-gui-verifier-assert "No backend or UI error" (not (etaf-gamekit-last-error session)))
+                     (etaf-gui-verifier-assert "No failed publication" (not (timer-errors))))
+               (etaf-gui-verifier-line-height-assertions (etaf-gamekit-buffer session))))
             :actions
             (append
              (resize-actions "light")
-             (list (key "dark-theme" "t" (lambda () (string-match-p "浅色" (text))) t))
+             (list (key "dark-theme" "t" (lambda () (string-match-p "浅色 · T" (text))) t))
              (resize-actions "dark")
              (list
-              (action "restore-size" (lambda () (etaf-tanks-gui--size 900 42))
-                      (lambda () (= (cdr (etaf-runtime-viewport runtime)) 42)))
-              (key "start" "p" (lambda () (eq :false (plist-get (state) :paused))))
-              (key "fire" "f" (lambda () (> (plist-get (state) :shots) 0)) t)
-              (key "pause" "p" (lambda () (eq t (plist-get (state) :paused))) t)
-              (key "aim-north" "S-<up>" (lambda () (equal (plist-get (state) :facing) "n")))
-              (key "resume" "p" (lambda () (eq :false (plist-get (state) :paused))))
-              (key "drive-north" "<up>"
-                   (lambda () (< (plist-get (car (plist-get (etaf-gamekit-view session :world) :entities)) :py) 10)))
-              (key "stop" "x" (lambda () (eq :false (plist-get (state) :moving))))
+              (action "restore-size" (lambda () (etaf-tanks-gui--size 1100 44))
+                      (lambda () (fits-viewport nil)))
+              (key "start" "g" (lambda () (equal (phase) "play")) t)
+              (key "drive" "<right>" (lambda () (equal (actor :facing) "e")))
+              (key "aim-north" "S-<up>" (lambda () (equal (actor :facing) "n")))
+              (key "fire" "f" (lambda () (> (actor :shots) 0)) t)
+              (key "pause" "p" (lambda () (eq t (view :paused))) t)
+              (key "resume" "p" (lambda () (eq :false (view :paused))))
               (action "pause-on-leave"
                       (lambda ()
                         (let ((other (generate-new-buffer " *tank focus acceptance*")) (end (+ (float-time) 4)))
                           (unwind-protect
                               (progn
                                 (switch-to-buffer other) (redisplay t)
-                                (while (and (< (float-time) end) (not (eq t (plist-get (state) :paused))))
+                                (while (and (< (float-time) end) (not (eq t (view :paused))))
                                   (accept-process-output nil 0.01)))
                             (switch-to-buffer (etaf-gamekit-buffer session)) (kill-buffer other))))
-                      (lambda () (eq t (plist-get (state) :paused))))
-              (key "help" "<f1>" (lambda () (string-match-p "驾驶与战斗" (text))) t)
-              (key "close-help" "<escape>" (lambda () (not (string-match-p "驾驶与战斗" (text)))))
+                      (lambda () (eq t (view :paused))))
+              (key "help" "<f1>" (lambda () (string-match-p "规则与按键" (text))) t)
+              (key "close-help" "<escape>" (lambda () (not (string-match-p "规则与按键" (text)))))
+              (key "settings" "s" (lambda () (string-match-p "游戏速度" (text))) t)
+              (key "close-settings" "<escape>" (lambda () (not (string-match-p "游戏速度" (text)))))
               (action "save"
                       (lambda ()
-                        (setq saved (etaf-gamekit-observation session))
-                        (execute-kbd-macro (vconcat (kbd "C-s C-a C-k") (string-to-vector file) (kbd "RET"))))
-                      (lambda () (> (file-attribute-size (file-attributes file)) 0)))
-              (key "restart" "n" (lambda () (= (plist-get (state) :shots) 0)))
+                        (setq saved (list (actor :x) (actor :y) (actor :facing)))
+                        (prompt "C-s"))
+                      (lambda () (and (file-exists-p file) (> (file-attribute-size (file-attributes file)) 0))))
+              (key "restart" "r" (lambda () (and (member (phase) '("intro" "play")) (= (actor :shots) 0)
+                                                (not (equal (list (actor :x) (actor :y) (actor :facing)) saved)))))
               (action "load"
-                      (lambda () (execute-kbd-macro (vconcat (kbd "C-o C-a C-k") (string-to-vector file) (kbd "RET"))))
                       (lambda ()
-                        (and (eq t (plist-get (state) :paused))
-                             (= (plist-get (state) :shots) (plist-get (plist-get saved :player) :shots)))))
-              (action "victory" #'fight (lambda () (eq t (plist-get (state) :won))) t)
-              (action "new-sortie" (lambda () (press 'tanks-new))
-                      (lambda () (and (eq t (plist-get (state) :paused)) (= 3 (plist-get (state) :enemies)))))
-              (action "defeat" (lambda () (press 'tanks-pause))
-                      (lambda () (eq t (plist-get (state) :lost))) t))))
+                        (prompt "C-o"))
+                      (lambda () (and (eq t (view :paused)) (equal (list (actor :x) (actor :y) (actor :facing)) saved))) t)
+              (key "leave" "m" (lambda () (equal (phase) "menu")))
+              (action "largest-stage" (lambda () (etaf-focus runtime 'tanks-stage-20))
+                      (lambda () (and (equal (phase) "menu") (equal (view :size) '(40 26)))) t)
+              (key "largest-battle" "g" (lambda () (and (equal (phase) "play") (equal (view :size) '(40 26)))) t)
+              (key "pause-largest" "p" (lambda () (eq t (view :paused))))
+              (key "leave-largest" "m" (lambda () (equal (phase) "menu")))
+              (key "editor" "e" (lambda () (equal (phase) "edit")) t)
+              (key "paint" "<right> <right> <down> 3 f" (lambda () (let ((cursor (view :editor))) (and (eql (plist-get cursor :x) 2) (eql (plist-get cursor :y) 1)))) t)
+              (key "discard-edit" "m y" (lambda () (equal (phase) "menu")))
+              (action "stage-tally" #'fight (lambda () (equal (phase) "cleared")) t)
+              (action "defeat"
+                      (lambda () (begin etaf-tanks-gui--sentry) (keys "S-<down> f"))
+                      (lambda () (equal (phase) "over")) t))))
            directory))
       (when session (etaf-tanks-close session))
-      (when (file-exists-p file) (delete-file file))
+      (delete-directory root t)
       (set-frame-size nil (car size) (cdr size) t)
       (set-frame-parameter nil 'fullscreen fullscreen))))
 

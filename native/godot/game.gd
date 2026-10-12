@@ -1,347 +1,314 @@
-extends Node2D
-## Real-time armour, collision and ballistics; stdout belongs to GameKit.
+extends Node
+## GameKit adapter for Iron Tide: stage flow, commands, frames and snapshots.
 ## SPDX-License-Identifier: GPL-3.0-or-later
+##
+## stdout belongs to GameKit. Rules live in battle.gd, map text in
+## stage_map.gd and pixel art in canvas.gd. The simulation advances on the
+## fixed physics clock; frames are composed only when something changed.
 
-const WIDTH := 21
-const HEIGHT := 13
-const CELL := 32.0
-const DIRECTIONS := [Vector2i.UP, Vector2i.RIGHT, Vector2i.DOWN, Vector2i.LEFT]
-const NAMES := ["n", "e", "s", "w"]
-const PLAYER_START := Vector2i(3, 10)
-const ENEMY_STARTS := [Vector2i(8, 10), Vector2i(17, 2), Vector2i(10, 2)]
-const MAX_HEALTH := 100
-const DAMAGE := 20
-const PLAYER_SPEED := 5.5
-const ENEMY_SPEED := 2.3
-const SHELL_SPEED := 16.0
-const PLAYER_RELOAD := 0.28
-const ENEMY_RELOAD := 1.6
+const StageMap := preload("res://stage_map.gd")
+const Battle := preload("res://battle.gd")
+const Canvas := preload("res://canvas.gd")
+const CAPABILITIES := ["menu", "edit", "begin", "next", "restart", "pause", "drive", "aim", "stop", "fire",
+	"settings", "display", "save", "load"]
+const INTRO := 1.6
+const SETTING_RANGES := {"speed": [0.5, 2.0], "player_speed": [0.5, 2.0], "hold": [0.05, 1.0], "repeat": [0.03, 0.5]}
 
-class Tank extends CharacterBody2D:
-	var identity := ""
-	var hostile := false
-	var facing := 1
-	var cooldown := 0.0
-	var route: Array[Vector2i] = []
-
-class Shell extends CharacterBody2D:
-	var hostile := false
-	var direction := Vector2.RIGHT
-	var life := 2.0
-
-var navigation := AStarGrid2D.new()
-var terrain: Array[String] = []
-var player: Tank
-var enemies: Array[Tank] = []
-var shells: Array[Shell] = []
-var effects: Array = []
+var phase := "menu"
+var paused := false
+var battle = null
+var map_text := ""
+var preview := {}
+var preview_error := ""
+var cursor := {"x": 0, "y": 0, "size": 2}
+var intro := 0.0
+var canvas = Canvas.new()
+var directory := ""
+var frame_id := 0
+var frame_path := ""
+var dirty := true
+var since_frame := 1.0
+var settings := {"speed": 1.0, "player_speed": 1.0, "hold": 0.28, "repeat": 0.12, "latch": false, "frame_rate": 60}
 var events: Array = []
-var health := MAX_HEALTH
-var shots := 0
-var kills := 0
-var seconds := 0.0
-var ai_clock := 0.0
-var event_id := 0
-var paused := true
-var won := false
-var lost := false
+var serial := [0]
+var tally := {}
+var stage := 1
+var title := ""
+var difficulty := "normal"
+var rng := RandomNumberGenerator.new()
 
 func _ready() -> void:
-	navigation.region = Rect2i(0, 0, WIDTH, HEIGHT)
-	navigation.cell_size = Vector2.ONE
-	navigation.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_NEVER
-	navigation.update()
-	for y in HEIGHT:
-		var row := ""
-		for x in WIDTH:
-			var solid := x == 0 or y == 0 or x == WIDTH - 1 or y == HEIGHT - 1
-			solid = solid or (x == 7 and y not in [2, 6, 10]) or (x == 13 and y not in [2, 6, 10])
-			solid = solid or (y == 6 and x not in [3, 7, 10, 13, 17])
-			row += "#" if solid else "."
-			if solid:
-				navigation.set_point_solid(Vector2i(x, y), true)
-				var wall := StaticBody2D.new()
-				wall.position = _centre(Vector2i(x, y))
-				wall.collision_layer = 1
-				wall.collision_mask = 0
-				var shape := CollisionShape2D.new()
-				var rectangle := RectangleShape2D.new()
-				rectangle.size = Vector2(CELL, CELL)
-				shape.shape = rectangle
-				wall.add_child(shape)
-				add_child(wall)
-		terrain.append(row)
-	_reset()
-
-func _centre(cell: Vector2i) -> Vector2:
-	return (Vector2(cell) + Vector2(0.5, 0.5)) * CELL
-
-func _cell(unit: Node2D) -> Vector2i:
-	return Vector2i(floor(unit.position.x / CELL), floor(unit.position.y / CELL))
-
-func _tank(identity: String, cell: Vector2i, hostile: bool) -> Tank:
-	var tank := Tank.new()
-	tank.identity = identity
-	tank.hostile = hostile
-	tank.position = _centre(cell)
-	tank.facing = 3 if hostile else 1
-	tank.cooldown = 1.6 if hostile else 0.0
-	tank.collision_layer = 4 if hostile else 2
-	tank.collision_mask = 7
-	var shape := CollisionShape2D.new()
-	var rectangle := RectangleShape2D.new()
-	rectangle.size = Vector2.ONE * (CELL * 0.60)
-	shape.shape = rectangle
-	tank.add_child(shape)
-	add_child(tank)
-	return tank
-
-func _reset() -> void:
-	for shell in shells:
-		shell.free()
-	shells.clear()
-	for enemy in enemies:
-		enemy.free()
-	enemies.clear()
-	if is_instance_valid(player):
-		player.free()
-	player = _tank("player", PLAYER_START, false)
-	for index in ENEMY_STARTS.size():
-		enemies.append(_tank("enemy-%d" % (index + 1), ENEMY_STARTS[index], true))
-	health = MAX_HEALTH
-	shots = 0
-	kills = 0
-	seconds = 0
-	ai_clock = 0
-	paused = true
-	won = false
-	lost = false
-	effects.clear()
-	events.clear()
-	event_id = 0
-	_event("整装待发", "按 P 开始；WASD 驾驶，空格开火。", "info")
-
-func _event(title: String, detail: String, kind: String) -> void:
-	event_id += 1
-	events.push_front({"id": event_id, "title": title, "detail": detail, "kind": kind, "time": int(seconds)})
-	if events.size() > 6:
-		events.pop_back()
-
-func _passable(cell: Vector2i) -> bool:
-	return navigation.is_in_boundsv(cell) and not navigation.is_point_solid(cell)
-
-func _route(tank: Tank, target: Vector2i) -> bool:
-	if not _passable(target):
-		return false
-	# Finish the current physics segment before changing route. Replanning
-	# mid-cell must not cut diagonally through the corner of a bulkhead.
-	var anchor: Vector2i = tank.route[0] if not tank.route.is_empty() else _cell(tank)
-	var path: Array[Vector2i] = navigation.get_id_path(anchor, target)
-	if path.is_empty():
-		return false
-	if tank.position.distance_to(_centre(anchor)) < 0.05:
-		path.pop_front()
-	tank.route = path
-	return true
-
-func _facing(direction: Vector2) -> int:
-	if absf(direction.x) > absf(direction.y):
-		return 1 if direction.x > 0 else 3
-	return 2 if direction.y > 0 else 0
-
-func _advance(tank: Tank, delta: float) -> void:
-	if tank.route.is_empty():
-		return
-	var target := _centre(tank.route[0])
-	var displacement := target - tank.position
-	var distance := displacement.length()
-	if distance < 0.02:
-		tank.route.pop_front()
-		return
-	tank.facing = _facing(displacement)
-	var speed := (ENEMY_SPEED if tank.hostile else PLAYER_SPEED) * CELL
-	var motion := displacement.normalized() * minf(distance, speed * delta)
-	# Godot is the authority for swept tank/wall and tank/tank collision.
-	var collision := tank.move_and_collide(motion)
-	if collision:
-		tank.route.clear()
-	elif distance <= speed * delta:
-		tank.route.pop_front()
-
-func _clear_shot(enemy: Tank) -> bool:
-	var distance := player.position - enemy.position
-	if minf(absf(distance.x), absf(distance.y)) > CELL * 0.18:
-		return false
-	var ray := PhysicsRayQueryParameters2D.create(enemy.position, player.position, 1)
-	return get_world_2d().direct_space_state.intersect_ray(ray).is_empty()
-
-func _shoot(tank: Tank) -> void:
-	var shell := Shell.new()
-	shell.hostile = tank.hostile
-	shell.direction = Vector2(DIRECTIONS[tank.facing])
-	shell.position = tank.position
-	shell.collision_layer = 0
-	# No friendly fire; walls and the opposing armour receive swept hits.
-	shell.collision_mask = 3 if tank.hostile else 5
-	var shape := CollisionShape2D.new()
-	var circle := CircleShape2D.new()
-	circle.radius = CELL * 0.06
-	shape.shape = circle
-	shell.add_child(shape)
-	add_child(shell)
-	shells.append(shell)
-	tank.cooldown = ENEMY_RELOAD if tank.hostile else PLAYER_RELOAD
-	if not tank.hostile:
-		shots += 1
-
-func _impact(shell: Shell, collision: KinematicCollision2D) -> void:
-	var collider = collision.get_collider()
-	effects.append({"x": shell.position.x / CELL, "y": shell.position.y / CELL, "life": 0.22})
-	if collider is Tank:
-		if collider.hostile:
-			enemies.erase(collider)
-			collider.free()
-			kills += 1
-			_event("命中摧毁", "已击毁 %d / 3 辆敌车。" % kills, "success")
-			if enemies.is_empty():
-				won = true
-				_event("战区肃清", "全部敌车已被摧毁。", "success")
-		else:
-			health = maxi(0, health - DAMAGE)
-			_event("装甲受损", "敌方炮弹造成 %d 点损伤。" % DAMAGE, "danger")
-			if health == 0:
-				lost = true
-				_event("战车损毁", "按 N 重新出击。", "danger")
-
-func _physics_process(delta: float) -> void:
-	# This runs on Godot's fixed 60 Hz physics clock, independently of orders.
-	if paused or won or lost:
-		return
-	seconds += delta
-	player.cooldown = maxf(0, player.cooldown - delta)
-	_advance(player, delta)
-	for index in range(effects.size() - 1, -1, -1):
-		effects[index].life -= delta
-		if effects[index].life <= 0:
-			effects.remove_at(index)
-	ai_clock -= delta
-	for enemy in enemies:
-		enemy.cooldown = maxf(0, enemy.cooldown - delta)
-		if _clear_shot(enemy):
-			enemy.route.clear()
-			enemy.facing = _facing(player.position - enemy.position)
-			if enemy.cooldown <= 0:
-				_shoot(enemy)
-		elif ai_clock <= 0:
-			_route(enemy, _cell(player))
-		_advance(enemy, delta)
-	if ai_clock <= 0:
-		ai_clock = 0.35
-	for index in range(shells.size() - 1, -1, -1):
-		var shell: Shell = shells[index]
-		shell.life -= delta
-		var collision := shell.move_and_collide(shell.direction * SHELL_SPEED * CELL * delta)
-		if collision:
-			_impact(shell, collision)
-		if collision or shell.life <= 0:
-			shells.remove_at(index)
-			shell.free()
-		if won or lost:
-			player.route.clear()
-			break
+	rng.randomize()
 
 func capabilities() -> Array:
-	return ["move", "navigate", "aim", "fire", "stop", "pause", "restart", "save", "load"]
+	return CAPABILITIES
 
-func _integer(value) -> bool:
-	return (value is float or value is int) and is_finite(float(value)) and value == floor(float(value))
+static func _integer(value, low: int, high: int) -> bool:
+	return (value is float or value is int) and is_finite(float(value)) and float(value) == floorf(float(value)) and int(value) >= low and int(value) <= high
+
+static func _number(value, low: float, high: float) -> bool:
+	return (value is float or value is int) and is_finite(float(value)) and float(value) >= low and float(value) <= high
+
+func _physics_process(delta: float) -> void:
+	since_frame += delta
+	match phase:
+		"intro":
+			if not paused:
+				intro -= delta
+				if intro <= 0.0:
+					phase = "play"
+					dirty = true
+		"play":
+			if not paused:
+				battle.step(delta * settings.speed)
+				dirty = true
+				if battle.finished():
+					_conclude()
+	if dirty and not directory.is_empty() and since_frame >= 1.0 / settings.frame_rate - 0.002:
+		_render()
+
+func _render() -> void:
+	match phase:
+		"menu":
+			canvas.compose_map(preview, null)
+		"edit":
+			canvas.compose_map(preview, cursor)
+		_:
+			canvas.compose_battle(battle)
+			var tone: Color = canvas.colors.text
+			if phase == "intro":
+				canvas.banner("STAGE %d" % stage, tone)
+			elif phase == "over" or battle.outcome == "lost":
+				canvas.banner("GAME OVER", canvas.colors.danger, phase == "over")
+			elif phase == "cleared":
+				canvas.banner("STAGE CLEAR", tone)
+			elif paused:
+				canvas.banner("PAUSE", tone)
+	frame_id += 1
+	var path: String = canvas.publish(directory, frame_id)
+	if path.is_empty():
+		frame_path = ""
+		_event("画面写入失败", "无法写入帧文件，请检查临时目录。", "danger")
+		directory = ""
+	else:
+		frame_path = path
+	dirty = false
+	since_frame = 0.0
+
+func _event(heading: String, detail: String, kind := "info") -> void:
+	if battle != null:
+		battle.event(heading, detail, kind)
+		return
+	serial[0] += 1
+	events.append({"id": serial[0], "title": heading, "detail": detail, "kind": kind})
+	if events.size() > 4:
+		events.pop_front()
+
+func _conclude() -> void:
+	var points: Array = []
+	for kind in 4:
+		points.append(battle.kills[kind] * Battle.KIND_POINTS[kind])
+	tally = {"kills": battle.kills.duplicate(), "points": points, "score": battle.score,
+		"lives": battle.lives, "star": battle.star, "next_life": battle.next_life, "cleared": battle.outcome == "cleared"}
+	phase = "cleared" if battle.outcome == "cleared" else "over"
+	paused = false
+	dirty = true
+
+func _new_battle(parsed: Dictionary, number: int, level: String, carry: Dictionary, seed: int):
+	var next = Battle.new()
+	next.events = events
+	next.serial = serial
+	next.setup(parsed, number, level, carry, seed)
+	_apply_settings(next)
+	return next
+
+func _apply_settings(target) -> void:
+	if target == null:
+		return
+	target.player_speed = settings.player_speed
+	target.hold_first = settings.hold
+	target.hold_repeat = settings.repeat
+	target.latch = settings.latch
+	if not settings.latch and target.player != null:
+		target.player.latched = false
+
+func _start(parsed: Dictionary, text: String, number: int, level: String, carry: Dictionary, seed: int) -> void:
+	events.clear()
+	battle = _new_battle(parsed, number, level, carry, seed)
+	map_text = text
+	stage = number
+	difficulty = level
+	title = parsed.name
+	phase = "intro"
+	intro = INTRO
+	paused = false
+	tally = {}
+	dirty = true
+
+func _carry(args: Dictionary, defaults: Dictionary) -> Variant:
+	var carry := defaults.duplicate()
+	for key in ["lives", "score", "star", "next_life"]:
+		if args.has(key):
+			var limits: Array = {"lives": [1, 99], "score": [0, 99999999], "star": [0, 3], "next_life": [1, 100000000]}[key]
+			if not _integer(args[key], limits[0], limits[1]):
+				return "参数无效：" + key
+			carry[key] = int(args[key])
+	return carry
 
 func command(operation: String, args: Dictionary) -> String:
-	if operation == "restart":
-		_reset()
-		return ""
-	if operation in ["save", "load"]:
-		if not args.get("path") is String or args.path.is_empty():
-			return "请指定存档路径"
-		return _save(args.path) if operation == "save" else _load_snapshot(args.path)
-	if won or lost:
-		return "战斗已结束，请开始新局"
 	match operation:
+		"display":
+			return _display(args)
+		"settings":
+			return _settings(args)
+		"menu":
+			if args.has("map") and not args.map is String:
+				return "地图必须是文本"
+			battle = null
+			events.clear()
+			phase = "menu"
+			paused = false
+			_preview(args.get("map", ""))
+			return ""
+		"edit":
+			if not args.get("map") is String:
+				return "地图必须是文本"
+			if not _integer(args.get("x", 0), 0, StageMap.MAX_WIDTH - 1) or not _integer(args.get("y", 0), 0, StageMap.MAX_HEIGHT - 1) or not _integer(args.get("size", 2), 1, 2):
+				return "光标或笔刷参数无效"
+			battle = null
+			events.clear()
+			phase = "edit"
+			paused = false
+			_preview(args.map)
+			cursor = {"x": int(args.get("x", 0)), "y": int(args.get("y", 0)), "size": int(args.get("size", 2))}
+			return ""
+		"begin":
+			if not args.get("map") is String:
+				return "地图必须是文本"
+			if not _integer(args.get("stage", 1), 1, 999):
+				return "关卡编号必须是 1–999 的整数"
+			if not args.get("difficulty", "normal") in Battle.DIFFICULTIES:
+				return "难度必须是 easy、normal 或 hard"
+			if args.has("seed") and not _integer(args.seed, 0, 2147483647):
+				return "随机种子必须是非负整数"
+			var parsed: Dictionary = StageMap.parse(args.map)
+			if not parsed.ok:
+				return "地图无效：" + parsed.error
+			var carry = _carry(args, {})
+			if carry is String:
+				return carry
+			_start(parsed, args.map, int(args.get("stage", 1)), args.get("difficulty", "normal"), carry,
+				int(args.seed) if args.has("seed") else rng.randi())
+			return ""
+		"next":
+			if phase != "cleared":
+				return "只有过关后才能进入下一关"
+			if not args.get("map") is String or not _integer(args.get("stage"), 1, 999):
+				return "下一关需要地图文本和关卡编号"
+			var parsed: Dictionary = StageMap.parse(args.map)
+			if not parsed.ok:
+				return "地图无效：" + parsed.error
+			var carry := {"lives": tally.lives, "score": tally.score, "star": tally.star, "next_life": tally.next_life}
+			_start(parsed, args.map, int(args.stage), difficulty, carry, rng.randi())
+			return ""
+		"restart":
+			if battle == null:
+				return "当前没有可重开的关卡"
+			_start(StageMap.parse(map_text), map_text, stage, difficulty, battle.start_carry, rng.randi())
+			return ""
 		"pause":
-			paused = not paused
-			player.route.clear()
+			if phase != "play" and phase != "intro":
+				return "当前没有进行中的战斗"
+			var wanted = args.get("paused")
+			if wanted != null and not wanted is bool:
+				return "暂停参数必须是布尔值"
+			paused = (not paused) if wanted == null else wanted
+			if paused:
+				battle.stop()
+			dirty = true
+			return ""
+		"drive", "aim":
+			var direction: int = Battle.FACINGS.find(args.get("direction"))
+			if direction < 0:
+				return "方向必须是 n、e、s 或 w"
+			if battle == null or phase in ["menu", "edit"]:
+				return "当前不在战斗中"
+			if phase == "play" and not paused and battle.outcome != "lost":
+				if operation == "drive":
+					battle.drive(direction)
+				else:
+					battle.aim(direction)
+				dirty = true
 			return ""
 		"stop":
-			player.route.clear()
-			return ""
-		"aim":
-			if not args.get("direction") in NAMES:
-				return "方向必须是 n、e、s 或 w"
-			player.route.clear()
-			player.facing = NAMES.find(args.direction)
-			return ""
-		"move", "navigate":
-			if paused:
-				return "请先开始或继续战斗"
-			if not _integer(args.get("x")) or not _integer(args.get("y")):
-				return "坐标必须为整数"
-			var point := Vector2i(int(args.x), int(args.y))
-			if operation == "move":
-				if absi(point.x) + absi(point.y) != 1:
-					return "每次只能沿一个方向驾驶"
-				# Coalesce key repeat to at most the current and one next cell.
-				# Leaving the window cannot leave a long driving queue behind.
-				point += player.route[0] if not player.route.is_empty() else _cell(player)
-			if not _passable(point):
-				return "掩体阻挡，无法驶入"
-			if not _route(player, point):
-				return "目的地不可达"
+			if battle != null:
+				battle.stop()
 			return ""
 		"fire":
-			if paused:
-				return "请先开始或继续战斗"
-			if player.cooldown > 0:
-				# Repeated input during reload is an accepted no-op, not an error.
-				return ""
-			_shoot(player)
+			if battle == null or phase in ["menu", "edit"]:
+				return "当前不在战斗中"
+			if phase == "play" and not paused and battle.outcome != "lost":
+				battle.fire(battle.player)
 			return ""
-		_:
-			return "不支持的操作：" + operation
+		"save", "load":
+			if not args.get("path") is String or args.path.is_empty():
+				return "请指定存档路径"
+			return _save(args.path) if operation == "save" else _load(args.path)
+	return "不支持的操作：" + operation
 
-func _entity(tank: Tank) -> Dictionary:
-	return {"id": tank.identity, "name": "我方战车" if not tank.hostile else "敌方战车",
-		"kind": "enemy" if tank.hostile else "player", "facing": NAMES[tank.facing],
-		"x": _cell(tank).x, "y": _cell(tank).y,
-		"px": snappedf(tank.position.x / CELL, 0.0625), "py": snappedf(tank.position.y / CELL, 0.0625)}
+func _preview(text: String) -> void:
+	preview = {}
+	preview_error = ""
+	if text.is_empty():
+		return
+	var parsed: Dictionary = StageMap.parse(text, false)
+	preview_error = parsed.error
+	if parsed.has("terrain"):
+		preview = parsed
+	dirty = true
 
-func observe() -> Dictionary:
-	var entities: Array = [_entity(player)]
-	for enemy in enemies:
-		entities.append(_entity(enemy))
-	var flying: Array = []
-	for shell in shells:
-		flying.append({"px": snappedf(shell.position.x / CELL, 0.0625), "py": snappedf(shell.position.y / CELL, 0.0625),
-			"x": _cell(shell).x, "y": _cell(shell).y, "owner": "enemy" if shell.hostile else "player"})
-	var flashes: Array = []
-	for effect in effects:
-		flashes.append({"px": effect.x, "py": effect.y})
-	return {"schema": "tanks/1", "title": "Iron Tide",
-		"world": {"width": WIDTH, "height": HEIGHT, "terrain": terrain, "entities": entities, "shells": flying, "effects": flashes},
-		"player": {"health": health, "facing": NAMES[player.facing], "shots": shots, "kills": kills,
-			"score": kills * 100, "seconds": int(seconds), "paused": paused, "won": won, "lost": lost,
-			"enemies": enemies.size(), "can_fire": not paused and not won and not lost and player.cooldown <= 0,
-			"moving": not player.route.is_empty()}, "events": events}
+func _display(args: Dictionary) -> String:
+	if not args.get("directory", "") is String or not args.get("theme", "dark") in Canvas.PALETTES:
+		return "画面参数无效"
+	var target: String = args.get("directory", "")
+	if not target.is_empty() and not DirAccess.dir_exists_absolute(target):
+		return "画面目录不存在"
+	directory = target
+	if args.get("theme", "dark") != canvas.theme:
+		canvas.configure(args.get("theme", "dark"))
+		if battle != null:
+			battle.terrain_reset = true
+	if directory.is_empty():
+		frame_path = ""
+	dirty = true
+	since_frame = 1.0
+	return ""
 
-func _saved_tank(tank: Tank) -> Dictionary:
-	return {"id": tank.identity, "x": tank.position.x / CELL, "y": tank.position.y / CELL,
-		"facing": tank.facing, "cooldown": tank.cooldown}
+func _settings(args: Dictionary) -> String:
+	var next := settings.duplicate()
+	for key in args:
+		if SETTING_RANGES.has(key):
+			if not _number(args[key], SETTING_RANGES[key][0], SETTING_RANGES[key][1]):
+				return "设置超出范围：" + key
+			next[key] = float(args[key])
+		elif key == "latch":
+			if not args[key] is bool:
+				return "驾驶方式必须是布尔值"
+			next[key] = args[key]
+		elif key == "frame_rate":
+			if not _integer(args[key], 10, 60):
+				return "帧率必须是 10–60 的整数"
+			next[key] = int(args[key])
+		else:
+			return "未知设置：" + str(key)
+	settings = next
+	_apply_settings(battle)
+	return ""
 
 func _save(path: String) -> String:
-	var raiders: Array = []
-	for enemy in enemies:
-		raiders.append(_saved_tank(enemy))
-	var data := {"format": "iron-tide/1", "player": _saved_tank(player), "enemies": raiders,
-		"health": health, "shots": shots, "kills": kills, "seconds": seconds, "won": won, "lost": lost}
+	if battle == null or not phase in ["intro", "play"]:
+		return "只有战斗中才能存档"
+	var data: Dictionary = battle.snapshot(map_text)
 	var file := FileAccess.open(path + ".tmp", FileAccess.WRITE)
 	if file == null:
 		return "无法写入存档：" + error_string(FileAccess.get_open_error())
@@ -350,19 +317,7 @@ func _save(path: String) -> String:
 	var result := DirAccess.rename_absolute(path + ".tmp", path)
 	return "" if result == OK else "无法发布存档：" + error_string(result)
 
-func _valid_tank(data, identity: String) -> bool:
-	if not data is Dictionary or data.get("id") != identity:
-		return false
-	for key in ["x", "y", "cooldown"]:
-		if not data.get(key) is float or not is_finite(data[key]):
-			return false
-	for y in range(int(floor(data.y - 0.299)), int(floor(data.y + 0.299)) + 1):
-		for x in range(int(floor(data.x - 0.299)), int(floor(data.x + 0.299)) + 1):
-			if not _passable(Vector2i(x, y)):
-				return false
-	return _integer(data.get("facing")) and data.facing >= 0 and data.facing < 4 and data.cooldown >= 0 and data.cooldown <= ENEMY_RELOAD
-
-func _load_snapshot(path: String) -> String:
+func _load(path: String) -> String:
 	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null or file.get_length() > 1024 * 1024:
 		return "无法读取存档，或文件超过 1 MiB"
@@ -370,46 +325,59 @@ func _load_snapshot(path: String) -> String:
 	if decoder.parse(file.get_as_text()) != OK:
 		return "无效的存档 JSON"
 	var data = decoder.data
-	if not data is Dictionary or data.get("format") != "iron-tide/1" or not _valid_tank(data.get("player"), "player"):
+	if not data is Dictionary or data.get("format") != "iron-tide/2" or not data.get("map") is String:
 		return "不兼容或无效的存档"
-	for key in ["health", "shots", "kills"]:
-		if not _integer(data.get(key)) or data[key] < 0:
-			return "存档计数无效"
-	if data.health > MAX_HEALTH or data.kills > 3 or not data.get("seconds") is float or not is_finite(data.seconds) or data.seconds < 0:
-		return "存档进度无效"
-	if not data.get("enemies") is Array or data.enemies.size() != 3 - data.kills:
-		return "存档敌车数量无效"
-	if not data.get("won") is bool or not data.get("lost") is bool or data.won != (data.kills == 3) or data.lost != (data.health == 0) or (data.won and data.lost):
-		return "存档胜负状态无效"
-	var ids: Array = []
-	var occupied: Array = [Vector2(data.player.x, data.player.y)]
-	for enemy in data.enemies:
-		if not enemy is Dictionary or not enemy.get("id") in ["enemy-1", "enemy-2", "enemy-3"] or enemy.id in ids or not _valid_tank(enemy, enemy.id):
-			return "存档敌车无效"
-		var position := Vector2(enemy.x, enemy.y)
-		for other in occupied:
-			if absf(position.x - other.x) < 0.59 and absf(position.y - other.y) < 0.59:
-				return "存档车辆位置重叠"
-		occupied.append(position)
-		ids.append(enemy.id)
-	_reset()
-	player.position = Vector2(data.player.x, data.player.y) * CELL
-	player.facing = int(data.player.facing)
-	player.cooldown = data.player.cooldown
-	for enemy in enemies:
-		enemy.free()
-	enemies.clear()
-	for enemy in data.enemies:
-		var unit := _tank(enemy.id, Vector2i.ZERO, true)
-		unit.position = Vector2(enemy.x, enemy.y) * CELL
-		unit.facing = int(enemy.facing)
-		unit.cooldown = enemy.cooldown
-		enemies.append(unit)
-	health = int(data.health)
-	shots = int(data.shots)
-	kills = int(data.kills)
-	seconds = data.seconds
-	won = data.won
-	lost = data.lost
-	_event("已读取存档", "战斗保持暂停，路线和在途炮弹已清空。", "info")
+	if not _integer(data.get("stage"), 1, 999) or not data.get("difficulty") in Battle.DIFFICULTIES:
+		return "存档的关卡或难度无效"
+	var parsed: Dictionary = StageMap.parse(data.map)
+	if not parsed.ok:
+		return "存档地图无效：" + parsed.error
+	var restored = Battle.new()
+	restored.setup(parsed, int(data.stage), data.difficulty, {}, rng.randi())
+	var failure: String = restored.restore(data)
+	if not failure.is_empty():
+		return failure
+	events.clear()
+	restored.events = events
+	restored.serial = serial
+	restored.event("已读取存档", "战斗已暂停；在途炮弹与出场动画已清空。", "info")
+	_apply_settings(restored)
+	battle = restored
+	map_text = data.map
+	stage = int(data.stage)
+	difficulty = data.difficulty
+	title = parsed.name
+	phase = "play"
+	paused = true
+	tally = {}
+	dirty = true
 	return ""
+
+func observe() -> Dictionary:
+	var result := {"schema": "tanks/2", "phase": phase, "paused": paused, "stage": stage, "title": title,
+		"difficulty": difficulty, "settings": settings, "size": null,
+		"frame": null if frame_path.is_empty() else {"id": frame_id, "path": frame_path},
+		"events": events}
+	if phase in ["menu", "edit"]:
+		result["map_error"] = preview_error
+		if preview.has("terrain"):
+			result["size"] = [preview.width, preview.height]
+		if phase == "edit":
+			result["editor"] = cursor
+	if battle != null:
+		var player = battle.player
+		var at: Vector2 = battle.player_spawn if player == null else player.pos
+		result["size"] = [battle.blocks_w, battle.blocks_h]
+		result["hud"] = {"lives": battle.lives, "score": battle.score, "star": battle.star,
+			"alive": player != null, "shield": player != null and player.shield > 0.0,
+			"remaining": battle.remaining(), "field": battle.field(), "total": battle.roster.size(),
+			"kills": battle.kills, "freeze": battle.freeze > 0.0, "fortify": battle.fortify > 0.0,
+			"base": battle.base_alive, "bonus": null if battle.bonus == null else Battle.BONUSES[battle.bonus.kind]}
+		result["actor"] = {"x": snappedf(at.x / Battle.BLOCK, 0.125), "y": snappedf(at.y / Battle.BLOCK, 0.125),
+			"facing": Battle.FACINGS[0 if player == null else player.facing],
+			"moving": player != null and player.moving, "shots": battle.shots, "can_fire": battle.can_fire()}
+		if directory.is_empty():
+			result["world"] = battle.world()
+	if not tally.is_empty():
+		result["tally"] = tally
+	return result
