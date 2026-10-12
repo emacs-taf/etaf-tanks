@@ -8,10 +8,11 @@
 ;; Iron Tide follows the rules of the 1985 arcade tank battle: defend the
 ;; eagle base at the bottom of the field, destroy every enemy tank of the
 ;; stage, and lose when the base falls or the last life is gone.  A headless
-;; Godot world owns the rules, a fixed simulation clock and the pixel-art
-;; renderer; ETAF shows its frames scaled without smoothing, the stage
-;; select, the battle HUD, the map editor and the settings.  Text frames get
-;; an equivalent character grid.  The twenty stages and all art are original.
+;; Godot world owns the rules, a fixed simulation clock and the renderer,
+;; which draws flat vector art with soft lighting at the display's own
+;; resolution; ETAF shows the changed lines of each frame, the stage select,
+;; the battle HUD, the map editor and the settings.  Text frames get an
+;; equivalent character grid.  The twenty stages and all art are original.
 ;;
 ;; Enemies are basic, fast, power (fast shells) and armored (four hits)
 ;; tanks; flashing carriers drop helmet, clock, shovel, star, grenade and
@@ -61,6 +62,11 @@
 ;; Battlefield frames per second on graphic displays: 30 (default) or 60.
 ;; The simulation clock is unaffected.
 ;;
+;; Variable: etaf-tanks-board-size
+;; Preferred battlefield block size on graphic displays: small, medium
+;; (default) or large, 12, 16 or 20 pixels per block.  A window too small
+;; for the preference uses smaller blocks, down to 10 pixels, then clips.
+;;
 ;; Variable: etaf-tanks-map-directory
 ;; Directory listed under the custom tab and used to save edited maps.
 ;;
@@ -106,6 +112,11 @@
 (defcustom etaf-tanks-frame-rate 30
   "Battlefield frames per second on graphic displays."
   :type '(choice (const 30) (const 60)) :group 'etaf-tanks)
+(defcustom etaf-tanks-board-size 'medium
+  "Preferred battlefield block size on graphic displays.
+small, medium and large draw 12, 16 and 20 pixels per block; a window too
+small for the preference uses smaller blocks, down to 10 pixels."
+  :type '(choice (const small) (const medium) (const large)) :group 'etaf-tanks)
 (defcustom etaf-tanks-map-directory (locate-user-emacs-file "etaf-tanks/maps/")
   "Directory of custom Iron Tide maps."
   :type 'directory :group 'etaf-tanks)

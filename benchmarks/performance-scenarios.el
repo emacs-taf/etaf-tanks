@@ -2,7 +2,7 @@
 ;;; performance-scenarios.el --- Iron Tide input-to-publication workloads
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 ;;; Commentary:
-;; Every workload fights the largest bundled stage on hard difficulty, so the
+;; Every workload fights the final bundled stage on hard difficulty, so the
 ;; most enemies, shells and terrain are live while input is measured.
 ;;; Code:
 (require 'etaf-tanks)
@@ -10,7 +10,7 @@
 
 (defconst etaf-tanks-benchmark--stage
   (expand-file-name "../native/godot/stages/20.txt" (file-name-directory (or load-file-name buffer-file-name)))
-  "The largest bundled campaign stage.")
+  "The final and most crowded bundled campaign stage.")
 
 (defun etaf-tanks-benchmark--battle (session counter)
   "Keep SESSION in a live, unpaused battle; return non-nil once it is.
@@ -82,17 +82,17 @@ COUNTER is a one-element list numbering the battles begun, which seeds them."
                                        (vector (car size) (cdr size)))))
      :cleanup (lambda () (etaf-tanks-close session)))))
 
-(dolist (case '((theme 50 "Repaint the live largest battlefield and its controls in the other palette")
-                (pause 50 "Pause or resume the largest battle through its rendered control")
+(dolist (case '((theme 50 "Repaint the live final battlefield and its controls in the other palette")
+                (pause 50 "Pause or resume the final battle through its rendered control")
                 (resize 50 "Refit the interface and rescale the live battlefield")))
   (let ((operation (car case)))
     (taf-benchmark-register (format "etaf-tanks.%s" operation)
-      :version 2 :modes '(batch gui) :isolation 'series :impact 'subtree
+      :version 3 :modes '(batch gui) :isolation 'series :impact 'subtree
       :budget-ms (cadr case) :description (caddr case)
       :setup (lambda (mode) (etaf-tanks-benchmark--fixture mode operation)))))
 
 (defun etaf-tanks-benchmark--keys (operation)
-  "Measure real command-loop input during the largest live battle.
+  "Measure real command-loop input during the final stage's live battle.
 Driving and aiming alternate west and east, so every sample turns the tank
 and it keeps a lane near its spawn; every sample must also change the
 published battlefield image.  Finished battles
@@ -117,7 +117,10 @@ are renewed through public actions in readiness, outside the measurement."
       (list
        :buffer (etaf-gamekit-buffer session)
        :environment (lambda () (list :input "Emacs command loop" :simulation "live 60 Hz Godot"
-                                    :stage "20 (largest) on hard"
+                                    :stage "20 (final) on hard"
+                                    :frame (let ((frame (etaf-gamekit-view session :frame)))
+                                             (format "%s device pixels per block, %s per line"
+                                                     (plist-get frame :block) (plist-get frame :line)))
                                     :completion "acknowledged state plus a changed battlefield image"
                                     :renewal "new battle after a cleared or lost stage"
                                     :paint-observer (if (eq operation 'drive-fire)
@@ -175,13 +178,13 @@ are renewed through public actions in readiness, outside the measurement."
                       (remove-hook 'pre-redisplay-functions paint-observer t)))
                   (etaf-tanks-close session))))))
 
-(dolist (case '((drive "Drive key to a changed battlefield image in the largest live battle")
+(dolist (case '((drive "Drive key to a changed battlefield image in the final live battle")
                 (aim "Repeated turning keys while enemies and shells keep moving")
                 (fire "Repeated loaded shots through F and visible projectiles")
                 (drive-fire "Continuous driving, alternating turns and simultaneous fire")))
   (let ((operation (car case)))
     (taf-benchmark-register (format "etaf-tanks.keys.%s" operation)
-      :version 5 :modes '(gui) :isolation 'series :impact 'subtree
+      :version 6 :modes '(gui) :isolation 'series :impact 'subtree
       :budget-ms 50 :description (cadr case)
       :setup (lambda (_mode) (etaf-tanks-benchmark--keys operation)))))
 

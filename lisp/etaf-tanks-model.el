@@ -16,6 +16,7 @@
 (defvar etaf-tanks-sensitivity)
 (defvar etaf-tanks-drive-mode)
 (defvar etaf-tanks-frame-rate)
+(defvar etaf-tanks-board-size)
 
 (defconst etaf-tanks--phases '("menu" "edit" "intro" "play" "cleared" "over")
   "Phases published by the native adapter.")
@@ -76,7 +77,10 @@
                   (integerp (car size)) (<= 12 (car size) 52)
                   (integerp (cadr size)) (<= 12 (cadr size) 40)))
          (or (null frame)
-             (and (natnump (plist-get frame :id)) (stringp (plist-get frame :path))))
+             (and (natnump (plist-get frame :id)) (natnump (plist-get frame :block))
+                  (natnump (plist-get frame :line)) (natnump (plist-get frame :width))
+                  (proper-list-p (plist-get frame :strips))
+                  (cl-every #'natnump (plist-get frame :strips))))
          (proper-list-p events)
          (cl-every (lambda (event) (and (natnump (plist-get event :id)) (stringp (plist-get event :title))
                                         (stringp (plist-get event :detail)) (stringp (plist-get event :kind))))
@@ -124,7 +128,7 @@ stutters between the press and the first repeat."
   "Return the session settings plist from the user's options."
   (list :speed etaf-tanks-game-speed :tank-speed etaf-tanks-tank-speed
         :sensitivity etaf-tanks-sensitivity :drive etaf-tanks-drive-mode
-        :frame-rate etaf-tanks-frame-rate))
+        :frame-rate etaf-tanks-frame-rate :board etaf-tanks-board-size))
 
 (defun etaf-tanks--native-settings (settings)
   "Translate SETTINGS to the adapter's settings arguments."

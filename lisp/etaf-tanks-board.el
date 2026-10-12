@@ -3,81 +3,70 @@
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;;; Commentary:
-;; Godot composes the battlefield at the original 8-pixel block resolution and
-;; writes one PNG per changed frame.  A graphical display shows that frame
-;; scaled by whole or half steps without smoothing, sliced into character rows
-;; and replaced through the Text Host's retained content route, so a moving
-;; battle never pays for an ordinary publication.  Text displays draw the
-;; published world description as two characters per block instead.
+;; Godot draws the battlefield at the display's device resolution and writes
+;; it as strips one text line tall, each changed strip as a new numbered PNG.
+;; A graphical display shows every strip as the image of one line of the
+;; board's Text Host and replaces only the images whose strip changed, so a
+;; moving battle decodes a few lines instead of the whole field.  Text
+;; displays draw the published world description as two characters per
+;; block instead.
 
 ;;; Code:
 (require 'cl-lib)
 (require 'etaf-ui)
 
-(defconst etaf-tanks--block-pixels 8
-  "Native pixels per map block.")
+(defconst etaf-tanks--block-sizes '((small . 12) (medium . 16) (large . 20))
+  "Preferred logical pixels per map block for each board size.")
 
-(defconst etaf-tanks--flush-batch 30
-  "Frames shown before older frame images leave Emacs's image cache.
-Evicting an image garbages the whole frame for one full redisplay, so frames
-are released together instead of once per frame.")
+(defconst etaf-tanks--smallest-block 10
+  "Smallest block in logical pixels; a narrower window clips the board.")
+
+(defconst etaf-tanks--flush-batch 10
+  "Frames shown before replaced strip images leave Emacs's image cache.
+Evicting an image garbages the whole frame for one full redisplay, so the
+replaced images of several frames are released together.")
 
 (defun etaf-tanks--metrics (graphic)
-  "Return the opening frame's character metrics; GRAPHIC selects frames."
+  "Return the opening frame's character metrics; GRAPHIC selects frames.
+DENSITY is the device pixels per logical pixel the native canvas draws for."
   (list :graphic graphic :char-width (frame-char-width) :line-height (frame-char-height)
-        :half-steps (and graphic (fboundp 'frame-scale-factor) (>= (frame-scale-factor) 2))))
+        :density (if (and graphic (fboundp 'frame-scale-factor)) (max 1 (round (frame-scale-factor))) 1)))
 
-(defun etaf-tanks--fit-scale (size metrics width height)
-  "Return the largest scale showing SIZE blocks within WIDTH x HEIGHT pixels.
-Scales are whole numbers, or halves on high-density displays where a half
-step still maps every native pixel to whole device pixels.  Below the first
-scale the battlefield keeps scale 1 and the viewport clips it."
-  (let* ((native-width (* (car size) etaf-tanks--block-pixels))
-         (native-height (* (cadr size) etaf-tanks--block-pixels))
-         (step (if (plist-get metrics :half-steps) 0.5 1))
-         (scale 1))
-    (cl-loop for candidate from 1 to 6 by step
-             when (and (<= (* native-width candidate) width) (<= (* native-height candidate) height))
-             do (setq scale candidate))
-    scale))
+(defun etaf-tanks--fit-block (size preferred width height)
+  "Return the logical block pixels showing SIZE blocks within WIDTH x HEIGHT.
+The block starts at PREFERRED and shrinks by two pixels until the board fits
+or reaches `etaf-tanks--smallest-block', below which the viewport clips."
+  (let ((block preferred))
+    (while (and (> block etaf-tanks--smallest-block)
+                (or (> (* (car size) block) width) (> (* (cadr size) block) height)))
+      (cl-decf block 2))
+    block))
 
-(defun etaf-tanks--board-geometry (size metrics scale)
-  "Return the canvas geometry for SIZE blocks at SCALE under METRICS."
+(defun etaf-tanks--board-geometry (size metrics block)
+  "Return the canvas geometry for SIZE blocks of BLOCK pixels under METRICS.
+DEVICE-BLOCK and DEVICE-LINE are what the native canvas draws a block and a
+strip in; both are even, so half blocks stay on whole device pixels."
   (if (plist-get metrics :graphic)
-      (let ((width (round (* (car size) etaf-tanks--block-pixels scale)))
-            (height (round (* (cadr size) etaf-tanks--block-pixels scale))))
-        (list :graphic t :scale scale :pixel-width width :pixel-height height
+      (let* ((density (plist-get metrics :density)) (line (plist-get metrics :line-height))
+             (width (* (car size) block)) (height (* (cadr size) block)))
+        (list :graphic t :block block :density density
+              :device-block (* block density) :device-line (* line density)
+              :pixel-width width :pixel-height height
               :columns (ceiling width (float (plist-get metrics :char-width)))
-              :rows (ceiling height (float (plist-get metrics :line-height)))
-              :line-height (plist-get metrics :line-height)))
+              :rows (ceiling height (float line)) :line-height line))
     (list :graphic nil :columns (* 2 (car size)) :rows (cadr size))))
 
-(defun etaf-tanks--image-placement ()
-  "Return how image slices sit in a line: (PERCENT ASCENT FONT-HEIGHT).
-PERCENT keeps a full slice one line tall.  ASCENT is the pixel ascent such a
-slice gives its line and FONT-HEIGHT the default font height that scales a
-`raise' display specification; both are nil when the font is unknown."
+(defun etaf-tanks--image-ascent ()
+  "Return the `:ascent' percentage that keeps a line-tall image in its line.
+The image then rises exactly as far as the default font, so strips stack
+without gaps and never make a line taller."
   (let* ((height (frame-char-height))
          (font (and (display-graphic-p) (face-font 'default)))
          (info (and font (font-info font)))
-         (ascent (and (vectorp info) (> (length info) 9) (aref info 8)))
-         (descent (and (vectorp info) (> (length info) 9) (aref info 9)))
-         (font-height (and (vectorp info) (> (length info) 3) (aref info 3))))
-    (if (and (numberp ascent) (numberp descent) (numberp font-height)
-             (> height 0) (> ascent 0) (>= descent 0) (> font-height 0))
-        (let ((percent (min 100 (max 1 (ceiling (* 100.0 (/ (float ascent) height)))))))
-          (list percent (max ascent (truncate (* height (/ percent 100.0)))) font-height))
-      (list 82 nil nil))))
-
-(defun etaf-tanks--slice-raise (placement height)
-  "Return the `raise' factor lifting a slice HEIGHT pixels tall to the line top.
-PLACEMENT comes from `etaf-tanks--image-placement'.  Emacs gives a partial
-slice only its proportional ascent, which would leave a gap above it."
-  (pcase-let ((`(,percent ,ascent ,font-height) placement))
-    (when ascent
-      (let ((lift (- ascent (truncate (* height (/ percent 100.0))))))
-        ;; Emacs truncates the scaled offset, so aim half a pixel past LIFT.
-        (and (> lift 0) (/ (+ lift 0.5) font-height))))))
+         (ascent (and (vectorp info) (> (length info) 8) (aref info 8))))
+    (if (and (numberp ascent) (> height 0) (> ascent 0))
+        (min 100 (max 1 (ceiling (* 100.0 (/ (float ascent) height)))))
+      82)))
 
 ;;; Text grid
 
@@ -160,64 +149,103 @@ blocks.  Forest hides tanks below it, as on the graphical canvas."
 ;;; Canvas
 
 (cl-defstruct (etaf-tanks--canvas (:constructor etaf-tanks--canvas-make) (:copier nil))
-  "Mutable presentation state of one mounted board."
-  runtime ref cell geometry placement frame shown)
+  "Mutable presentation state of one mounted board.
+IMAGES and SERIALS hold each strip's image and file version, CELLS the
+line text showing it; SHOWN is the (BLOCK LINE WIDTH) they were drawn for.
+RETIRED images wait for the next batched cache flush after PRESENTED frames."
+  runtime ref cell geometry directory ascent frame shown images serials cells retired (presented 0))
+
+(defun etaf-tanks--canvas-matches-p (canvas frame)
+  "Whether FRAME was drawn for CANVAS's current geometry.
+After a resize Godot needs one frame to adopt the new block and line; until
+then the board keeps showing the strips it has."
+  (let ((geometry (etaf-tanks--canvas-geometry canvas)))
+    (and frame (plist-get geometry :graphic)
+         (eql (plist-get frame :block) (plist-get geometry :device-block))
+         (eql (plist-get frame :line) (plist-get geometry :device-line))
+         (eql (plist-get frame :width) (* (plist-get geometry :pixel-width) (plist-get geometry :density))))))
+
+(defun etaf-tanks--canvas-adopt (canvas)
+  "Load the strips of CANVAS's frame that changed; return non-nil if any did.
+A strip whose file is gone keeps its previous image: Godot retires a file
+only after writing newer versions, which a later frame then names."
+  (let ((frame (etaf-tanks--canvas-frame canvas)))
+    (when (etaf-tanks--canvas-matches-p canvas frame)
+      (let* ((strips (plist-get frame :strips)) (count (length strips))
+             (shape (list (plist-get frame :block) (plist-get frame :line) (plist-get frame :width)))
+             (scale (/ 1.0 (plist-get (etaf-tanks--canvas-geometry canvas) :density)))
+             (directory (etaf-tanks--canvas-directory canvas))
+             (changed nil))
+        (unless (and (equal shape (etaf-tanks--canvas-shown canvas))
+                     (= count (length (etaf-tanks--canvas-images canvas))))
+          (etaf-tanks--canvas-retire canvas)
+          (setf (etaf-tanks--canvas-shown canvas) shape
+                (etaf-tanks--canvas-images canvas) (make-vector count nil)
+                (etaf-tanks--canvas-serials canvas) (make-vector count nil)
+                (etaf-tanks--canvas-cells canvas) (make-vector count " ")))
+        (let ((images (etaf-tanks--canvas-images canvas))
+              (serials (etaf-tanks--canvas-serials canvas))
+              (cells (etaf-tanks--canvas-cells canvas)))
+          (cl-loop for serial in strips for row from 0 do
+                   (unless (eql serial (aref serials row))
+                     (let ((file (expand-file-name (format "%d-%d.png" row serial) directory)))
+                       (when (file-exists-p file)
+                         (when (aref images row)
+                           (push (aref images row) (etaf-tanks--canvas-retired canvas)))
+                         (let ((image (create-image file 'png nil :scale scale
+                                                    :ascent (etaf-tanks--canvas-ascent canvas))))
+                           (aset images row image)
+                           (aset serials row serial)
+                           (aset cells row (propertize " " 'display image))
+                           (setq changed t)))))))
+        changed))))
+
+(defun etaf-tanks--canvas-retire (canvas)
+  "Schedule every strip image CANVAS shows for eviction."
+  (let ((images (etaf-tanks--canvas-images canvas)))
+    (when images
+      (cl-loop for image across images
+               when image do (push image (etaf-tanks--canvas-retired canvas))))
+    (setf (etaf-tanks--canvas-images canvas) nil (etaf-tanks--canvas-serials canvas) nil
+          (etaf-tanks--canvas-cells canvas) nil (etaf-tanks--canvas-shown canvas) nil)))
+
+(defun etaf-tanks--canvas-release (canvas)
+  "Evict CANVAS's retired strip images from Emacs's image cache."
+  (dolist (image (etaf-tanks--canvas-retired canvas))
+    (image-flush image))
+  (setf (etaf-tanks--canvas-retired canvas) nil))
 
 (defun etaf-tanks--canvas-content (canvas)
-  "Build CANVAS's text for its current frame and geometry."
-  (let* ((geometry (etaf-tanks--canvas-geometry canvas))
-         (frame (etaf-tanks--canvas-frame canvas))
-         (rows (plist-get geometry :rows)))
-    (if (not (and frame (plist-get geometry :graphic)))
-        (mapconcat #'identity (make-list rows " ") "\n")
-      (let* ((width (plist-get geometry :pixel-width)) (height (plist-get geometry :pixel-height))
-             (line (plist-get geometry :line-height))
-             ;; The frame id makes every spec distinct: Godot reuses a small
-             ;; ring of files, and Emacs caches decoded images by spec.
-             (image (create-image (plist-get frame :path) 'png nil
-                                  :width width :height height :transform-smoothing nil
-                                  :ascent (car (etaf-tanks--canvas-placement canvas))
-                                  :etaf-tanks-frame (plist-get frame :id))))
-        (push image (etaf-tanks--canvas-shown canvas))
-        (mapconcat (lambda (row)
-                     (let* ((y (* row line)) (slice (min line (- height y)))
-                            (raise (and (< 0 slice line)
-                                        (etaf-tanks--slice-raise (etaf-tanks--canvas-placement canvas) slice))))
-                       (if (>= y height) " "
-                         (propertize " " 'display
-                                     (if raise
-                                         (list (list 'raise raise) (list 'slice 0 y width slice) image)
-                                       (list (list 'slice 0 y width slice) image))))))
-                   (number-sequence 0 (1- rows)) "\n")))))
-
-(defun etaf-tanks--canvas-release (canvas &optional all)
-  "Evict CANVAS's shown frame images, keeping the newest unless ALL."
-  (let ((shown (etaf-tanks--canvas-shown canvas)))
-    (dolist (image (if all shown (cdr shown)))
-      (image-flush image))
-    (setf (etaf-tanks--canvas-shown canvas) (if all nil (and shown (list (car shown)))))))
+  "Return CANVAS's text: one strip image per line, or blank lines."
+  (let ((cells (etaf-tanks--canvas-cells canvas)))
+    (if (and cells (> (length cells) 0))
+        (mapconcat #'identity cells "\n")
+      (mapconcat #'identity
+                 (make-list (max 1 (plist-get (etaf-tanks--canvas-geometry canvas) :rows)) " ") "\n"))))
 
 (defun etaf-tanks--canvas-present (canvas)
-  "Replace CANVAS's mounted content with its current frame."
+  "Replace CANVAS's mounted content with its current strips."
   (let ((runtime (etaf-tanks--canvas-runtime canvas)))
     (when (and runtime (etaf-runtime-mounted-p runtime))
       (let ((content (etaf-tanks--canvas-content canvas)))
         (setcar (etaf-tanks--canvas-cell canvas) content)
         (etaf-runtime-update-host-content runtime (etaf-tanks--canvas-ref canvas) content)
-        (when (> (length (etaf-tanks--canvas-shown canvas)) etaf-tanks--flush-batch)
+        (when (>= (cl-incf (etaf-tanks--canvas-presented canvas)) etaf-tanks--flush-batch)
+          (setf (etaf-tanks--canvas-presented canvas) 0)
           (etaf-tanks--canvas-release canvas))))))
 
 (defvar etaf-tanks--board-counter 0
   "Counter giving each mounted board a session-unique Host id.")
 
-(etaf-define-component etaf-tanks--board (&key frame text geometry background)
+(etaf-define-component etaf-tanks--board (&key frame text geometry directory background)
   "Show FRAME (graphic) or TEXT (text displays) in a canvas of GEOMETRY.
-FRAME, TEXT and GEOMETRY are reactive sources.  New frames, text and sizes
-replace only this Host's content after the render that changed its box."
+FRAME, TEXT and GEOMETRY are reactive sources; FRAME names strip files in
+DIRECTORY.  New strips, text and sizes replace only this Host's content
+after the render that changed its box."
   :bindings ((content-ref (etaf-local-ref 'content))
              (content-id (format "etaf-tanks-board-%d" (cl-incf etaf-tanks--board-counter)))
-             (canvas (etaf-tanks--canvas-make :ref content-ref :cell (cons " " nil)
-                                              :placement (etaf-tanks--image-placement))))
+             (canvas (etaf-tanks--canvas-make :ref content-ref :cell (cons " " nil) :directory directory
+                                              :ascent (etaf-tanks--image-ascent))))
   :setup
   (let ((graphic (plist-get (etaf-value geometry) :graphic)))
     ;; A remounted board starts from the latest frame: Godot publishes only
@@ -225,24 +253,29 @@ replace only this Host's content after the render that changed its box."
     (setf (etaf-tanks--canvas-geometry canvas) (etaf-value geometry))
     (if graphic
         (progn (setf (etaf-tanks--canvas-frame canvas) (etaf-value frame))
+               (etaf-tanks--canvas-adopt canvas)
                (setcar (etaf-tanks--canvas-cell canvas) (etaf-tanks--canvas-content canvas)))
       (setcar (etaf-tanks--canvas-cell canvas) (or (etaf-value text) " ")))
     (etaf-on-mounted (lambda ()
                        (setf (etaf-tanks--canvas-runtime canvas) (etaf-current-runtime))
                        (when graphic (etaf-tanks--canvas-present canvas))))
     (etaf-on-unmounted (lambda ()
-                         (etaf-tanks--canvas-release canvas t)
+                         (etaf-tanks--canvas-retire canvas)
+                         (etaf-tanks--canvas-release canvas)
                          (setf (etaf-tanks--canvas-runtime canvas) nil)))
     (if graphic
         (progn
-          ;; Resizing renders the box first; the content follows it.
+          ;; Resizing renders the box first; the strips follow once Godot
+          ;; has drawn a frame for the new geometry.
           (etaf-watch geometry (lambda (next _old)
                                  (setf (etaf-tanks--canvas-geometry canvas) next)
+                                 (etaf-tanks--canvas-adopt canvas)
                                  (etaf-tanks--canvas-present canvas))
                       :flush 'post :test #'equal)
           (etaf-watch frame (lambda (next _old)
                               (setf (etaf-tanks--canvas-frame canvas) next)
-                              (etaf-tanks--canvas-present canvas))
+                              (when (etaf-tanks--canvas-adopt canvas)
+                                (etaf-tanks--canvas-present canvas)))
                       :flush 'post :test #'equal))
       (etaf-watch text (lambda (next _old)
                          (let ((runtime (etaf-tanks--canvas-runtime canvas)))

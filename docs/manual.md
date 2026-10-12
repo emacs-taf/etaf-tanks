@@ -2,7 +2,7 @@
 
 Iron Tide is a Battle City style tank game. Each game runs an independent
 headless Godot world that owns the rules, a fixed simulation clock and the
-pixel-art renderer; the ETAF application owns the stage select, battle panel,
+battlefield renderer; the ETAF application owns the stage select, battle panel,
 map editor, settings, dialogs and file prompts. Requiring GameKit never loads
 or launches this game.
 
@@ -76,8 +76,9 @@ battle asks for confirmation; a paused battle is left immediately.
 `S` opens the settings, which take effect immediately: game speed and the
 player's tank speed (50–200 %), arrow-key sensitivity (follow the system key
 repeat, sensitive, standard or smooth), driving mode (drive while an arrow is
-held, or keep driving after one press until X or Shift+arrow) and the frame
-rate (30 or 60). *Save as default* stores them, with the difficulty, through
+held, or keep driving after one press until X or Shift+arrow), the frame
+rate (30 or 60) and, on graphic displays, the board size (small, medium or
+large: 12, 16 or 20 pixels per block). *Save as default* stores them, with the difficulty, through
 Customize in the `etaf-tanks-*` variables listed in the Commentary.
 
 ## Maps and the editor
@@ -129,13 +130,23 @@ first command. Commands go through `etaf-gamekit-action`:
   and `stop` take no arguments.
 - `pause` toggles a running battle, or sets `:paused` to `t` or `:false`.
 - `settings` takes `:speed`, `:player_speed`, `:hold`, `:repeat`, `:latch` and
-  `:frame_rate`; `display` takes the frame `:directory` and `:theme`.
+  `:frame_rate`.
+- `display` takes the frame `:directory`, the `:theme` (`"light"` or
+  `"dark"`), the device pixels per map block `:block` (an even number from 8
+  to 96) and per text line `:line` (6–256).
 - `save` and `load` take an explicit `:path` string.
 
 The observation reports `phase` (`menu`, `edit`, `intro`, `play`, `cleared`
 or `over`), `paused`, the map `size`, the battle `hud`, the player `actor` and
 the end-of-stage `tally`; without a frame directory it also reports the
-`world` grid of units, shells and bonuses. A rejected command reports its
+`world` grid of units, shells and bonuses. With a frame directory, `frame`
+describes the newest published frame once one exists: its `id`, `block`,
+`line` and pixel `width`, and `strips`, the file version of each horizontal
+strip, top to bottom. Strip *i* at version *v* is the PNG
+`DIRECTORY/i-v.png`, `line` pixels tall; a new version is written only when
+the strip changed. The 16 newest versions of each strip are kept, so a reader
+that lags a few frames behind still finds its files. The caller owns the
+directory and deletes it after closing. A rejected command reports its
 reason through `etaf-gamekit-last-error` and leaves the state unchanged.
 
 Snapshots are written only to explicit paths, atomically. Loading validates the
@@ -145,14 +156,17 @@ untouched. Closing never saves.
 
 ## Display
 
-On graphic displays Godot renders each frame at the original console
-resolution (8-pixel blocks) and Emacs scales it by a whole factor without
-smoothing, half steps on high-density screens. The board takes the largest
-scale that fits; in battle a compact panel moves below the board when that
-allows a larger scale. Below the smallest scale the board stays at scale 1
-and the window clips it. Palette changes affect presentation only and never
-restart or pause the battle. Text displays show a two-character-per-block
-grid instead.
+On graphic displays Godot draws the battlefield as flat vector art with soft
+lighting, rasterized at the screen's device pixels so high-density screens stay
+sharp. The board uses the preferred block size from the settings; when the
+window cannot hold it, the block shrinks in 2-pixel steps down to 10 pixels,
+and below that the window clips the board. In battle a compact panel moves
+below the board when that allows larger blocks. Each frame is divided into
+strips one text line tall, and only the strips that changed are encoded and
+replaced, so Emacs decodes just those lines. After a resize the previous
+frame stays visible until Godot has drawn one for the new size. Palette
+changes affect presentation only and never restart or pause the battle. Text
+displays show a two-character-per-block grid instead.
 
 Correctness lives in `tests/acceptance.json`, which runs the real Godot backend
 through public game and UI interfaces. `scripts/etaf-tanks-gui-scenarios.el`
@@ -164,7 +178,7 @@ cleared stage and a defeat.
 
 The workspace performance driver runs `benchmarks/performance-scenarios.el`.
 The `etaf-tanks.keys.*` workloads measure driving, aiming, firing and
-driving while firing on the largest stage on hard: native key input, the
+driving while firing on the final stage on hard: native key input, the
 Godot response and the changed board image offered to redisplay. Theme, pause
 and resize workloads are measured separately. Background GUI results do not
 certify foreground operating-system input latency.

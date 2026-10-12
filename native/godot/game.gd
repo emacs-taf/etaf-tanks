@@ -3,8 +3,9 @@ extends Node
 ## SPDX-License-Identifier: GPL-3.0-or-later
 ##
 ## stdout belongs to GameKit. Rules live in battle.gd, map text in
-## stage_map.gd and pixel art in canvas.gd. The simulation advances on the
-## fixed physics clock; frames are composed only when something changed.
+## stage_map.gd, artwork in art.gd and frame strips in canvas.gd. The
+## simulation advances on the fixed physics clock; frames are composed only
+## when something changed, and only changed strips are written.
 
 const StageMap := preload("res://stage_map.gd")
 const Battle := preload("res://battle.gd")
@@ -25,7 +26,6 @@ var intro := 0.0
 var canvas = Canvas.new()
 var directory := ""
 var frame_id := 0
-var frame_path := ""
 var dirty := true
 var since_frame := 1.0
 var settings := {"speed": 1.0, "player_speed": 1.0, "hold": 0.28, "repeat": 0.12, "latch": false, "frame_rate": 60}
@@ -75,23 +75,19 @@ func _render() -> void:
 			canvas.compose_map(preview, cursor)
 		_:
 			canvas.compose_battle(battle)
-			var tone: Color = canvas.colors.text
 			if phase == "intro":
-				canvas.banner("STAGE %d" % stage, tone)
+				canvas.banner("STAGE %d" % stage, "text")
 			elif phase == "over" or battle.outcome == "lost":
-				canvas.banner("GAME OVER", canvas.colors.danger, phase == "over")
+				canvas.banner("GAME OVER", "danger", phase == "over")
 			elif phase == "cleared":
-				canvas.banner("STAGE CLEAR", tone)
+				canvas.banner("STAGE CLEAR", "text")
 			elif paused:
-				canvas.banner("PAUSE", tone)
+				canvas.banner("PAUSE", "text")
 	frame_id += 1
-	var path: String = canvas.publish(directory, frame_id)
-	if path.is_empty():
-		frame_path = ""
-		_event("画面写入失败", "无法写入帧文件，请检查临时目录。", "danger")
+	var failure: String = canvas.publish(directory, frame_id)
+	if not failure.is_empty():
+		_event("画面写入失败", failure, "danger")
 		directory = ""
-	else:
-		frame_path = path
 	dirty = false
 	since_frame = 0.0
 
@@ -268,18 +264,21 @@ func _preview(text: String) -> void:
 	dirty = true
 
 func _display(args: Dictionary) -> String:
-	if not args.get("directory", "") is String or not args.get("theme", "dark") in Canvas.PALETTES:
+	var theme = args.get("theme", "dark")
+	var block = args.get("block", 32)
+	var height = args.get("line", 32)
+	if not args.get("directory", "") is String or not theme in Canvas.Art.PALETTES:
 		return "画面参数无效"
+	if not _integer(block, 8, 96) or int(block) % 2 != 0 or not _integer(height, 6, 256):
+		return "画面尺寸无效：每格须为 8–96 的偶数，行高须为 6–256"
 	var target: String = args.get("directory", "")
 	if not target.is_empty() and not DirAccess.dir_exists_absolute(target):
 		return "画面目录不存在"
 	directory = target
-	if args.get("theme", "dark") != canvas.theme:
-		canvas.configure(args.get("theme", "dark"))
+	if theme != canvas.theme or int(block) != canvas.block or int(height) != canvas.line or canvas.cw == 0:
+		canvas.configure(theme, int(block), int(height))
 		if battle != null:
 			battle.terrain_reset = true
-	if directory.is_empty():
-		frame_path = ""
 	dirty = true
 	since_frame = 1.0
 	return ""
@@ -356,7 +355,7 @@ func _load(path: String) -> String:
 func observe() -> Dictionary:
 	var result := {"schema": "tanks/2", "phase": phase, "paused": paused, "stage": stage, "title": title,
 		"difficulty": difficulty, "settings": settings, "size": null,
-		"frame": null if frame_path.is_empty() else {"id": frame_id, "path": frame_path},
+		"frame": null if directory.is_empty() or canvas.published == 0 else canvas.description(),
 		"events": events}
 	if phase in ["menu", "edit"]:
 		result["map_error"] = preview_error

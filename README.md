@@ -9,8 +9,10 @@ clock, shovel, star, grenade and extra-tank bonuses. A map editor creates and
 test-plays your own stages.
 
 A headless Godot world owns the rules, the fixed simulation clock and the
-pixel-art renderer. ETAF shows its frames, the stage select, the battle panel,
-the editor and the settings. Text displays get an equivalent character grid.
+renderer, which draws flat vector art with soft lighting in light and dark
+palettes at the screen's own resolution. ETAF shows the changed lines of each
+frame, the stage select, the battle panel, the editor and the settings. Text
+displays get an equivalent character grid.
 All artwork and stages are original.
 
 ## Install and play
@@ -25,8 +27,8 @@ installed through GameKit. Add this repository root to `load-path`:
 
 Choose a stage with the arrow keys and press Return or `G`. In battle the arrow
 keys drive, `Shift` with an arrow turns in place, and `F` fires. `P` pauses, `S`
-opens the settings (game speed, tank speed, key sensitivity, driving mode and
-frame rate), `T` switches the light and dark palettes and `F1` lists every key.
+opens the settings (game speed, tank speed, key sensitivity, driving mode,
+frame rate and board size), `T` switches the light and dark palettes and `F1` lists every key.
 
 The [manual](docs/manual.md) covers the rules, the map format, the editor,
 snapshots and the display. The [entry Commentary](etaf-tanks.el) owns the

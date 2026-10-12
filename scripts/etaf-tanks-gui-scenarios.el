@@ -72,14 +72,22 @@ restored after success or failure.  Confirmations are answered with y under
                                  (lambda () (fits-viewport (eq (car spec) 'minimum-clipping))) t))
                        '((wide 1400 50) (standard 1100 44) (narrow 760 44)
                          (short 1100 32) (minimum-clipping 520 24))))
-             ;; The Runtime follows the resized window, and above the minimum
-             ;; the whole table fits it without clipping.
+             ;; The Runtime follows the resized window, above the minimum the
+             ;; whole table fits it without clipping, and Godot has redrawn
+             ;; the battlefield for the board's new box.
              (fits-viewport (clipped)
                (let ((viewport (etaf-runtime-viewport runtime))
                      (bounds (etaf-host-ref-size runtime 'tanks-root)))
                  (and (= (cdr viewport) (window-body-height))
                       (<= (abs (- (car viewport) (window-body-width nil t))) (* 2 (frame-char-width)))
-                      bounds (or clipped (<= (car bounds) (car viewport))))))
+                      bounds (or clipped (<= (car bounds) (car viewport)))
+                      (drawn))))
+             ;; The published strips span the board Host to within a column.
+             (drawn ()
+               (let ((frame (view :frame)) (board (etaf-host-ref-size runtime 'tanks-board)))
+                 (and frame board
+                      (< -1 (- (car board) (/ (plist-get frame :width) (max 1 (round (frame-scale-factor)))))
+                         (frame-char-width)))))
              (begin (map)
                (etaf-gamekit-action session "begin" (list :map map :stage 1 :difficulty "easy" :seed 5))
                (let ((end (+ (float-time) 6)))
@@ -114,7 +122,7 @@ restored after success or failure.  Confirmations are answered with y under
              (list
               (action "restore-size" (lambda () (etaf-tanks-gui--size 1100 44))
                       (lambda () (fits-viewport nil)))
-              (key "start" "g" (lambda () (equal (phase) "play")) t)
+              (key "start" "g" (lambda () (and (equal (phase) "play") (drawn))) t)
               (key "drive" "<right>" (lambda () (equal (actor :facing) "e")))
               (key "aim-north" "S-<up>" (lambda () (equal (actor :facing) "n")))
               (key "fire" "f" (lambda () (> (actor :shots) 0)) t)
@@ -146,11 +154,11 @@ restored after success or failure.  Confirmations are answered with y under
                         (prompt "C-o"))
                       (lambda () (and (eq t (view :paused)) (equal (list (actor :x) (actor :y) (actor :facing)) saved))) t)
               (key "leave" "m" (lambda () (equal (phase) "menu")))
-              (action "largest-stage" (lambda () (etaf-focus runtime 'tanks-stage-20))
-                      (lambda () (and (equal (phase) "menu") (equal (view :size) '(40 26)))) t)
-              (key "largest-battle" "g" (lambda () (and (equal (phase) "play") (equal (view :size) '(40 26)))) t)
-              (key "pause-largest" "p" (lambda () (eq t (view :paused))))
-              (key "leave-largest" "m" (lambda () (equal (phase) "menu")))
+              (action "final-stage" (lambda () (etaf-focus runtime 'tanks-stage-20))
+                      (lambda () (and (equal (phase) "menu") (equal (view :size) '(40 26)) (drawn))) t)
+              (key "final-battle" "g" (lambda () (and (equal (phase) "play") (equal (view :size) '(40 26)) (drawn))) t)
+              (key "pause-final" "p" (lambda () (eq t (view :paused))))
+              (key "leave-final" "m" (lambda () (equal (phase) "menu")))
               (key "editor" "e" (lambda () (equal (phase) "edit")) t)
               (key "paint" "<right> <right> <down> 3 f" (lambda () (let ((cursor (view :editor))) (and (eql (plist-get cursor :x) 2) (eql (plist-get cursor :y) 1)))) t)
               (key "discard-edit" "m y" (lambda () (equal (phase) "menu")))

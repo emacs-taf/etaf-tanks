@@ -186,15 +186,17 @@
     (customize-save-variable 'etaf-tanks-sensitivity (plist-get settings :sensitivity))
     (customize-save-variable 'etaf-tanks-drive-mode (plist-get settings :drive))
     (customize-save-variable 'etaf-tanks-frame-rate (plist-get settings :frame-rate))
+    (customize-save-variable 'etaf-tanks-board-size (plist-get settings :board))
     (customize-save-variable 'etaf-tanks-difficulty (etaf-value (etaf-tanks--ui-difficulty ui)))
     (message "钢铁洪流：已保存为默认设置")))
 
-(defun etaf-tanks--display-sync (ui)
-  "Point UI's native canvas at its frame directory with the current palette."
-  (when (etaf-tanks--ui-directory ui)
+(defun etaf-tanks--display-sync (ui display)
+  "Point UI's native canvas at its strip directory with DISPLAY.
+DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
+  (when (and (etaf-tanks--ui-directory ui) display)
     (etaf-tanks--send (etaf-tanks--ui-session ui) "display"
-                      (list :directory (etaf-tanks--ui-directory ui)
-                            :theme (symbol-name (etaf-value (etaf-tanks--ui-appearance ui)))))))
+                      (list :directory (etaf-tanks--ui-directory ui) :theme (symbol-name (nth 0 display))
+                            :block (nth 1 display) :line (nth 2 display)))))
 
 ;;; Editor
 
@@ -321,11 +323,12 @@
 
 ;;; Layout
 
-(defun etaf-tanks--layout (metrics viewport size screen)
+(defun etaf-tanks--layout (metrics viewport size screen preferred)
   "Return the board geometry and arrangement for SIZE blocks on SCREEN.
 METRICS are the opening frame's character metrics and VIEWPORT the
-Runtime's (PIXELS . ROWS).  The side panel sits right of the board; a
-battle moves a compact HUD below it when that allows a larger board."
+Runtime's (PIXELS . ROWS).  Blocks are PREFERRED pixels when they fit.  The
+side panel sits right of the board; a battle moves a compact HUD below it
+when that allows larger blocks."
   (let* ((char (plist-get metrics :char-width)) (line (plist-get metrics :line-height))
          (pixels (or (car viewport) (* 120 char))) (rows (or (cdr viewport) 44))
          (beside (- pixels (* (+ 7 etaf-tanks--panel-columns) char)))
@@ -334,11 +337,10 @@ battle moves a compact HUD below it when that allows a larger board."
         (let ((geometry (etaf-tanks--board-geometry size metrics nil)))
           (list :board geometry
                 :stacked (< beside (* (plist-get geometry :columns) char))))
-      (let* ((side (etaf-tanks--fit-scale size metrics beside (* (- rows 4) line)))
-             (stacked (and (eq screen 'battle)
-                           (> (etaf-tanks--fit-scale size metrics below (* (- rows 8) line)) side))))
-        (list :board (etaf-tanks--board-geometry
-                      size metrics (if stacked (etaf-tanks--fit-scale size metrics below (* (- rows 8) line)) side))
+      (let* ((side (etaf-tanks--fit-block size preferred beside (* (- rows 4) line)))
+             (under (etaf-tanks--fit-block size preferred below (* (- rows 8) line)))
+             (stacked (and (eq screen 'battle) (> under side))))
+        (list :board (etaf-tanks--board-geometry size metrics (if stacked under side))
               :stacked stacked)))))
 
 ;;; Panels
@@ -502,7 +504,7 @@ COMPACT arranges the essentials in three rows under the board."
   (* 10 (max 5 (min 20 (round (* 10 value))))))
 
 (etaf-define-component etaf-tanks--settings-dialog (&key ui)
-  "Adjust speeds, input timing, frame rate and appearance live."
+  "Adjust speeds, input timing, frame rate, appearance and board size live."
   :bindings ((settings (etaf-tanks--ui-settings ui)) (open (etaf-tanks--ui-settings-open ui))
              (appearance (etaf-tanks--ui-appearance ui)))
   :view
@@ -534,6 +536,14 @@ COMPACT arranges the essentials in three rows under the board."
       (column
         (etaf-label :text "外观" :variant 'strong)
         (etaf-segmented :options '((light . "浅色") (dark . "深色")) :bind appearance))
+      (expr (when (plist-get (etaf-tanks--ui-metrics ui) :graphic)
+              (etaf-view
+               (column
+                 (etaf-label :text "画面大小" :variant 'strong)
+                 (etaf-segmented :options '((small . "小") (medium . "中") (large . "大"))
+                                 :value (plist-get (etaf-value settings) :board)
+                                 :on-change (lambda (value) (etaf-tanks--set-setting ui :board value)))
+                 (etaf-label :text "窗口放不下时自动缩小。" :variant 'muted)))))
       (row :item-gap '(ch 1)
         (etaf-button :label "保存为默认" :ref 'tanks-settings-save :variant 'secondary
                      :on-press (lambda () (etaf-tanks--save-defaults ui)))
@@ -683,10 +693,17 @@ GRAPHIC shows native frames from a private directory the instance owns."
                                    (if entry (list (plist-get entry :width) (plist-get entry :height)) (list 26 26))))))
                           :test #'equal))
              (viewport (etaf-computed (lambda () (etaf-viewport)) :test #'equal))
-             (layout (etaf-computed (lambda () (etaf-tanks--layout metrics (etaf-value viewport) (etaf-value board-size)
-                                                                     (etaf-value screen)))
+             (layout (etaf-computed (lambda () (etaf-tanks--layout
+                                                 metrics (etaf-value viewport) (etaf-value board-size) (etaf-value screen)
+                                                 (alist-get (plist-get (etaf-value (etaf-tanks--ui-settings ui)) :board)
+                                                            etaf-tanks--block-sizes 16)))
                                     :test #'equal))
              (geometry (etaf-computed (lambda () (plist-get (etaf-value layout) :board)) :test #'equal))
+             (display (etaf-computed (lambda () (let ((board (etaf-value geometry)))
+                                                  (and graphic (list (etaf-value appearance)
+                                                                     (plist-get board :device-block)
+                                                                     (plist-get board :device-line)))))
+                                     :test #'equal))
              (text (etaf-computed
                     (lambda ()
                       (unless graphic
@@ -713,10 +730,10 @@ GRAPHIC shows native frames from a private directory the instance owns."
                 (lambda (now _old)
                   (when now
                     (etaf-tanks--apply-settings ui (etaf-value (etaf-tanks--ui-settings ui)))
-                    (etaf-tanks--display-sync ui)
+                    (etaf-tanks--display-sync ui (etaf-value display))
                     (etaf-tanks--menu-sync ui)))
                 :immediate t)
-    (etaf-watch appearance (lambda (_now _old) (etaf-tanks--display-sync ui)))
+    (etaf-watch display (lambda (now _old) (etaf-tanks--display-sync ui now)))
     (etaf-watch phase (lambda (now old)
                         (when (and (member now '("cleared" "over")) (member old '("intro" "play")))
                           (etaf-tanks--record ui now))))
@@ -737,7 +754,7 @@ GRAPHIC shows native frames from a private directory the instance owns."
          (stacked (plist-get arrangement :stacked)) (board (plist-get arrangement :board))
          (width (+ 4 (plist-get board :columns) (if stacked 0 (+ 3 etaf-tanks--panel-columns))))
          (fits (>= (or (car (etaf-value viewport)) 0) (* width (plist-get metrics :char-width))))
-         (canvas (etaf-view (etaf-tanks--board :frame frame :text text :geometry geometry
+         (canvas (etaf-view (etaf-tanks--board :frame frame :text text :geometry geometry :directory directory
                                                :background (etaf-tanks--color :ui-bg))))
          (panel (pcase current
                   ('menu (etaf-view (etaf-tanks--menu-panel :ui ui :map-error map-error)))
