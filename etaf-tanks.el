@@ -74,6 +74,17 @@
 ;; Variable: etaf-tanks-progress-file
 ;; File remembering cleared stages and best scores per difficulty.
 ;;
+;; Function: etaf-tanks-create ()
+;;;###autoload (autoload 'etaf-tanks-create "etaf-tanks" nil t)
+;; Create and return an independent GameKit session without displaying it. The
+;; caller owns display and lifecycle; pass the result to etaf-tanks-view and
+;; release it with etaf-gamekit-close.
+;;
+;; Function: etaf-tanks-view (session)
+;;;###autoload (autoload 'etaf-tanks-view "etaf-tanks" nil t)
+;; Return the reactive View for SESSION, suitable for embedding in a host such
+;; as an etaf-desktop window. The caller owns SESSION's display and lifecycle.
+;;
 ;; Function: etaf-tanks-open ()
 ;;;###autoload (autoload 'etaf-tanks-open "etaf-tanks" nil t)
 ;; Start and display an independent instance at the stage select; return its

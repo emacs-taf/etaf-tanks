@@ -846,5 +846,12 @@ GRAPHIC shows native frames from a private directory the instance owns."
   (let ((graphic (and (display-graphic-p) (image-type-available-p 'png))))
     (etaf-view (etaf-tanks--app :session session :graphic graphic))))
 
+(defun etaf-tanks-view (session)
+  "Return SESSION's reactive View for embedding in a host such as etaf-desktop.
+
+The caller owns SESSION's display and lifecycle; release it with
+`etaf-gamekit-close'."
+  (etaf-tanks--view session))
+
 (provide 'etaf-tanks-views)
 ;;; etaf-tanks-views.el ends here

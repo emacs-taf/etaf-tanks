@@ -22,10 +22,17 @@
                  (not (eq window (frame-selected-window (window-frame window))))))
     (etaf-tanks--pause-for-input etaf-tanks--session)))
 
+(defun etaf-tanks-create ()
+  "Return a session for etaf-tanks-view without displaying it.
+
+The caller owns the session's display and lifecycle; release it with
+`etaf-gamekit-close'."
+  (etaf-gamekit-start etaf-tanks-game))
+
 (defun etaf-tanks-open ()
   "Start and display an independent tank battle."
   (interactive)
-  (let* ((session (etaf-gamekit-start etaf-tanks-game))
+  (let* ((session (etaf-tanks-create))
          (buffer (etaf-gamekit-buffer session)))
     (with-current-buffer buffer
       (setq-local etaf-tanks--session session cursor-type nil mode-line-format nil truncate-lines t
