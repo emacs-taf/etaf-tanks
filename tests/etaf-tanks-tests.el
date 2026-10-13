@@ -352,5 +352,40 @@ battle's published play phase from passing for the new one."
           (let ((after (etaf-tanks-test--stable session)) (focus (etaf-focused-host-ref runtime)))
             (should (equal before after)) (should (eq focus 'tanks-board))))))))
 
+(ert-deftest etaf-tanks-text-scale-preserves-paused-battle-and-image-rows ()
+  "Zoom repartitions graphic strips while keeping the paused game and focus."
+  (etaf-tanks-test--with-sessions (session)
+    (let* ((buffer (etaf-gamekit-buffer session))
+           (runtime (etaf-runtime-for-buffer buffer)))
+      (etaf-tanks-test--keys session "g")
+      (etaf-tanks-test--wait session (etaf-tanks-test--phase-p session "play"))
+      (etaf-tanks-test--keys session "p")
+      (etaf-tanks-test--wait session (lambda () (eq t (etaf-tanks-test--view session :paused))))
+      (let ((before (etaf-tanks-test--stable session)))
+        (dolist (scale '(2 -2 0))
+          (with-current-buffer buffer (text-scale-set scale))
+          (sleep-for 0.3)
+          (etaf-tanks-test--wait
+           session
+           (lambda ()
+             (or (not (display-graphic-p))
+                 (let ((frame (etaf-gamekit-view session :frame))
+                       (line (plist-get (etaf-display-metrics runtime) :line-height)))
+                   (eql (plist-get frame :line)
+                        (* line (if (fboundp 'frame-scale-factor)
+                                    (max 1 (round (frame-scale-factor))) 1)))))))
+          (let ((after (etaf-tanks-test--stable session))
+                (focus (etaf-focused-host-ref runtime)))
+            (should (equal before after))
+            (should (eq focus 'tanks-board)))
+          (when (display-graphic-p)
+            (with-current-buffer buffer
+              (let ((p (point-min)) (images 0))
+                (while (< p (point-max))
+                  (when (eq (car-safe (get-text-property p 'display)) 'image)
+                    (cl-incf images))
+                  (setq p (next-single-property-change p 'display nil (point-max))))
+                (should (> images 0))))))))))
+
 (provide 'etaf-tanks-tests)
 ;;; etaf-tanks-tests.el ends here

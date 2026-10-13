@@ -325,7 +325,7 @@ DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
 
 (defun etaf-tanks--layout (metrics viewport size screen preferred)
   "Return the board geometry and arrangement for SIZE blocks on SCREEN.
-METRICS are the opening frame's character metrics and VIEWPORT the
+METRICS are the current buffer's display metrics and VIEWPORT the
 Runtime's (PIXELS . ROWS).  Blocks are PREFERRED pixels when they fit.  The
 side panel sits right of the board; a battle moves a compact HUD below it
 when that allows larger blocks."
@@ -641,7 +641,7 @@ COMPACT arranges the essentials in three rows under the board."
 (etaf-define-component etaf-tanks--app (&key session graphic)
   "Compose one tank battle over SESSION.
 GRAPHIC shows native frames from a private directory the instance owns."
-  :bindings ((metrics (etaf-tanks--metrics graphic))
+  :bindings ((metrics (etaf-computed (lambda () (etaf-tanks--metrics graphic)) :test #'equal))
              (directory (and graphic (make-temp-file "etaf-tanks-" t)))
              (appearance (etaf-ref (if (eq etaf-tanks-appearance 'auto)
                                        (if (eq (frame-parameter nil 'background-mode) 'dark) 'dark 'light)
@@ -649,7 +649,7 @@ GRAPHIC shows native frames from a private directory the instance owns."
              (builtin (etaf-tanks--builtin-stages))
              (progress (etaf-ref (etaf-tanks--progress-read)))
              (ui (etaf-tanks--ui-make
-                  :session session :metrics metrics :directory directory :appearance appearance
+                  :session session :metrics (etaf-value metrics) :directory directory :appearance appearance
                   :settings (etaf-ref (etaf-tanks--default-settings))
                   :difficulty (etaf-ref etaf-tanks-difficulty)
                   :catalog (etaf-ref (list :builtin builtin :custom (etaf-tanks--custom-maps)))
@@ -694,7 +694,7 @@ GRAPHIC shows native frames from a private directory the instance owns."
                           :test #'equal))
              (viewport (etaf-computed (lambda () (etaf-viewport)) :test #'equal))
              (layout (etaf-computed (lambda () (etaf-tanks--layout
-                                                 metrics (etaf-value viewport) (etaf-value board-size) (etaf-value screen)
+                                                 (etaf-value metrics) (etaf-value viewport) (etaf-value board-size) (etaf-value screen)
                                                  (alist-get (plist-get (etaf-value (etaf-tanks--ui-settings ui)) :board)
                                                             etaf-tanks--block-sizes 16)))
                                     :test #'equal))
@@ -753,7 +753,7 @@ GRAPHIC shows native frames from a private directory the instance owns."
   (let* ((current (etaf-value screen)) (arrangement (etaf-value layout))
          (stacked (plist-get arrangement :stacked)) (board (plist-get arrangement :board))
          (width (+ 4 (plist-get board :columns) (if stacked 0 (+ 3 etaf-tanks--panel-columns))))
-         (fits (>= (or (car (etaf-value viewport)) 0) (* width (plist-get metrics :char-width))))
+         (fits (>= (or (car (etaf-value viewport)) 0) (* width (plist-get (etaf-value metrics) :char-width))))
          (canvas (etaf-view (etaf-tanks--board :frame frame :text text :geometry geometry :directory directory
                                                :background (etaf-tanks--color :ui-bg))))
          (panel (pcase current

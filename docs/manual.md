@@ -179,7 +179,11 @@ replaced, so Emacs decodes just those lines. The frame rate paces steady
 animation; a frame answering a drive, aim, fire or pause key is drawn on the
 next 60 Hz simulation step instead of waiting for the next paced frame. After a
 resize the previous frame stays visible until Godot has drawn one for the new
-size. Palette changes affect presentation only and never restart or pause the
+size. Buffer text scaling also updates the public ETAF display metrics: the
+board keeps its pixel width and Godot repartitions it into strips at the new
+line height and baseline. Zooming in, out or back to the default size preserves
+the selected stage, paused battle and keyboard focus; labels reflow around the
+board rather than stretching the map. Palette changes affect presentation only and never restart or pause the
 battle. Text displays show a two-character-per-block grid instead.
 
 Correctness lives in `tests/acceptance.json`, which runs the real Godot backend

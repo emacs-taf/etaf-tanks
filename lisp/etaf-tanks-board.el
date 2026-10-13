@@ -27,10 +27,12 @@ Evicting an image garbages the whole frame for one full redisplay, so the
 replaced images of several frames are released together.")
 
 (defun etaf-tanks--metrics (graphic)
-  "Return the opening frame's character metrics; GRAPHIC selects frames.
+  "Return reactive display metrics; GRAPHIC selects native frames.
 DENSITY is the device pixels per logical pixel the native canvas draws for."
-  (list :graphic graphic :char-width (frame-char-width) :line-height (frame-char-height)
-        :density (if (and graphic (fboundp 'frame-scale-factor)) (max 1 (round (frame-scale-factor))) 1)))
+  (append (list :graphic graphic
+                :density (if (and graphic (fboundp 'frame-scale-factor))
+                             (max 1 (round (frame-scale-factor))) 1))
+          (etaf-display-metrics)))
 
 (defun etaf-tanks--fit-block (size preferred width height)
   "Return the logical block pixels showing SIZE blocks within WIDTH x HEIGHT.
@@ -53,20 +55,9 @@ strip in; both are even, so half blocks stay on whole device pixels."
               :device-block (* block density) :device-line (* line density)
               :pixel-width width :pixel-height height
               :columns (ceiling width (float (plist-get metrics :char-width)))
-              :rows (ceiling height (float line)) :line-height line))
+              :rows (ceiling height (float line)) :line-height line
+              :ascent (plist-get metrics :ascent)))
     (list :graphic nil :columns (* 2 (car size)) :rows (cadr size))))
-
-(defun etaf-tanks--image-ascent ()
-  "Return the `:ascent' percentage that keeps a line-tall image in its line.
-The image then rises exactly as far as the default font, so strips stack
-without gaps and never make a line taller."
-  (let* ((height (frame-char-height))
-         (font (and (display-graphic-p) (face-font 'default)))
-         (info (and font (font-info font)))
-         (ascent (and (vectorp info) (> (length info) 8) (aref info 8))))
-    (if (and (numberp ascent) (> height 0) (> ascent 0))
-        (min 100 (max 1 (ceiling (* 100.0 (/ (float ascent) height)))))
-      82)))
 
 ;;; Text grid
 
@@ -151,7 +142,7 @@ blocks.  Forest hides tanks below it, as on the graphical canvas."
 (cl-defstruct (etaf-tanks--canvas (:constructor etaf-tanks--canvas-make) (:copier nil))
   "Mutable presentation state of one mounted board.
 IMAGES and SERIALS hold each strip's image and file version, CELLS the
-line text showing it; SHOWN is the (BLOCK LINE WIDTH) they were drawn for.
+line text showing it; SHOWN is the (BLOCK LINE WIDTH ASCENT) presentation.
 RETIRED images wait for the next batched cache flush after PRESENTED frames."
   runtime ref cell geometry directory ascent frame shown images serials cells retired (presented 0))
 
@@ -172,7 +163,8 @@ only after writing newer versions, which a later frame then names."
   (let ((frame (etaf-tanks--canvas-frame canvas)))
     (when (etaf-tanks--canvas-matches-p canvas frame)
       (let* ((strips (plist-get frame :strips)) (count (length strips))
-             (shape (list (plist-get frame :block) (plist-get frame :line) (plist-get frame :width)))
+             (shape (list (plist-get frame :block) (plist-get frame :line)
+                          (plist-get frame :width) (etaf-tanks--canvas-ascent canvas)))
              (scale (/ 1.0 (plist-get (etaf-tanks--canvas-geometry canvas) :density)))
              (directory (etaf-tanks--canvas-directory canvas))
              (changed nil))
@@ -245,7 +237,7 @@ after the render that changed its box."
   :bindings ((content-ref (etaf-local-ref 'content))
              (content-id (format "etaf-tanks-board-%d" (cl-incf etaf-tanks--board-counter)))
              (canvas (etaf-tanks--canvas-make :ref content-ref :cell (cons " " nil) :directory directory
-                                              :ascent (etaf-tanks--image-ascent))))
+                                              :ascent (plist-get (etaf-value geometry) :ascent))))
   :setup
   (let ((graphic (plist-get (etaf-value geometry) :graphic)))
     ;; A remounted board starts from the latest frame: Godot publishes only
@@ -268,7 +260,8 @@ after the render that changed its box."
           ;; Resizing renders the box first; the strips follow once Godot
           ;; has drawn a frame for the new geometry.
           (etaf-watch geometry (lambda (next _old)
-                                 (setf (etaf-tanks--canvas-geometry canvas) next)
+                                 (setf (etaf-tanks--canvas-geometry canvas) next
+                                       (etaf-tanks--canvas-ascent canvas) (plist-get next :ascent))
                                  (etaf-tanks--canvas-adopt canvas)
                                  (etaf-tanks--canvas-present canvas))
                       :flush 'post :test #'equal)
@@ -284,7 +277,10 @@ after the render that changed its box."
                              (etaf-runtime-update-host-content runtime content-ref (or next " ")))))
                   :flush 'post :test #'equal)))
   :view
-  (box :ref 'tanks-board :width (list 'ch (plist-get (etaf-value geometry) :columns))
+  (box :ref 'tanks-board :width (let ((g (etaf-value geometry)))
+                                  (if (plist-get g :graphic)
+                                      (list 'px (plist-get g :pixel-width))
+                                    (list 'ch (plist-get g :columns))))
        :height (list 'lh (plist-get (etaf-value geometry) :rows))
        :position 'static :left '(px 0) :top '(lh 0) :z-index 0
        :wrap-mode 'none :overflow 'hidden :background-color background
