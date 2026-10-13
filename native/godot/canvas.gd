@@ -3,13 +3,11 @@ extends RefCounted
 ## SPDX-License-Identifier: GPL-3.0-or-later
 ##
 ## art.gd describes every sprite as SVG. This file rasterizes the art at the
-## display's device pixels per block, keeps a lit terrain layer and a forest
-## canopy layer, and composes each frame from an ordered list of draw
-## operations. A frame is divided into strips one Emacs text line tall; only
-## strips whose operations or terrain changed since the previous frame are
-## repainted and written, each as a new numbered file version, so Emacs
-## decodes only the lines that changed. PNG encoding dominates the cost of a
-## frame, so changed strips are encoded in parallel on the worker pool.
+## display's device pixels per block, paints a lit terrain layer into the
+## shared publisher's background image, keeps a forest canopy layer, and
+## records each frame's sprites as draw operations. GameKit's frame_strips.gd
+## owns strip splitting, change detection, parallel PNG encoding and the
+## numbered file versions that let Emacs decode only changed lines.
 
 const Art := preload("res://art.gd")
 const Battle := preload("res://battle.gd")
@@ -19,11 +17,10 @@ const STEEL := 2
 const WATER := 3
 const FOREST := 4
 const ICE := 5
-## File versions kept per strip; older ones are deleted. Emacs reads a strip
-## file at its next redisplay, which may come several frames later.
-const KEEP := 16
 const CLEAR := Color(0, 0, 0, 0)
 
+## GameKit's shared strip publisher; created in `_init'.
+var publisher = null
 var theme := "dark"
 var palette: Dictionary = Art.PALETTES.dark
 var block := 16
@@ -35,26 +32,19 @@ var cw := 0
 var ch := 0
 var width := 0
 var height := 0
-var strips := 0
 var shown := PackedByteArray()
+## Alias of PUBLISHER's background image; the terrain is painted there.
 var terrain: Image
 var forest: Image
-var frame: Image
 var shade: Image
 var grid: Image
 var lighting := {}
-var ops: Array = []
-var signatures := PackedStringArray()
-var dirty := PackedByteArray()
-var serials := PackedInt32Array()
-var versions: Array = []
 var forest_runs: Array = []
-var directory := ""
 var published := 0
-var batch := PackedInt32Array()
-var batch_id := 0
-var failures := PackedStringArray()
-var mutex := Mutex.new()
+
+func _init() -> void:
+	var native_dir: String = Engine.get_meta("gamekit_native_dir")
+	publisher = load(native_dir.path_join("frame_strips.gd")).new()
 
 ## Use palette NAME, DEVICE-BLOCK pixels per map block (a multiple of 4) and
 ## strips DEVICE-LINE pixels tall. Every layer is rebuilt on the next frame.
@@ -231,24 +221,16 @@ func _sync(cells: PackedByteArray, columns: int, rows: int) -> void:
 	ch = rows
 	width = cw * sub
 	height = ch * sub
-	strips = ceili(float(height) / line)
 	shown = cells.duplicate()
-	terrain = Image.create_empty(width, height, false, Image.FORMAT_RGBA8)
+	publisher.configure(block, line, width, height)
+	terrain = publisher.base
 	forest = Image.create_empty(width, height, false, Image.FORMAT_RGBA8)
-	frame = Image.create_empty(width, strips * line, false, Image.FORMAT_RGBA8)
 	shade = null
 	grid = null
-	signatures.resize(strips)
-	dirty.resize(strips)
-	dirty.fill(1)
-	serials.resize(strips)
-	var previous := versions.size()
-	versions.resize(strips)
-	for index in range(previous, strips):
-		versions[index] = []
 	for y in ch:
 		for x in cw:
 			_paint_cell(x, y)
+	publisher.mark_all()
 	_measure_forest()
 
 ## Record the forest canopy as horizontal runs, so frames blend only them.
@@ -277,11 +259,15 @@ func _update(cells: PackedByteArray, indices: PackedInt32Array) -> void:
 			for dx in range(-1, 2):
 				if x + dx >= 0 and x + dx < cw and y + dy >= 0 and y + dy < ch:
 					touched[(y + dy) * cw + x + dx] = true
+	var top := height
+	var bottom := 0
 	for index in touched:
 		var y: int = index / cw
 		_paint_cell(index % cw, y)
-		for strip in range(y * sub / line, mini(strips - 1, ((y + 1) * sub - 1) / line) + 1):
-			dirty[strip] = 1
+		top = mini(top, y * sub)
+		bottom = maxi(bottom, (y + 1) * sub)
+	if bottom > top:
+		publisher.mark_rows(top, bottom)
 	_measure_forest()
 
 # ---------------------------------------------------------------- operations
@@ -291,7 +277,7 @@ func _update(cells: PackedByteArray, indices: PackedInt32Array) -> void:
 ## empty KEY draw terrain-derived layers, whose changes mark strips dirty
 ## when the terrain changes.
 func _op(key: String, image: Image, at: Vector2i, source := Rect2i()) -> void:
-	ops.append([key, image, Rect2i(Vector2i.ZERO, image.get_size()) if source.size == Vector2i.ZERO else source, at])
+	publisher.draw(key, image, at, source)
 
 func _place(key: String, image: Image, native: Vector2) -> void:
 	_op(key, image, Vector2i(roundi(native.x * unit), roundi(native.y * unit)))
@@ -346,7 +332,7 @@ func compose_battle(battle) -> void:
 	elif not battle.dirty_cells.is_empty():
 		_update(battle.cells, battle.dirty_cells)
 		battle.dirty_cells.clear()
-	ops.clear()
+	publisher.begin()
 	if battle.fortify > 0.0 and battle.fortify < 3.0 and int(battle.anim * 4.0) % 2 == 0:
 		var brick := _texture("brick")
 		for cell in battle.fort_cells:
@@ -395,7 +381,7 @@ func compose_battle(battle) -> void:
 
 ## Compose the map PARSED by stage_map.gd, with the editor's CURSOR or null.
 func compose_map(parsed: Dictionary, cursor) -> void:
-	ops.clear()
+	publisher.begin()
 	if not parsed.has("terrain"):
 		var columns := cw if cw > 0 else 52
 		var rows := ch if ch > 0 else 52
@@ -441,107 +427,13 @@ func compose_map(parsed: Dictionary, cursor) -> void:
 
 # ---------------------------------------------------------------- publication
 
-## Mark strips whose operations changed and repaint every dirty strip.
-func _finish() -> void:
-	var tags: Array = []
-	tags.resize(strips)
-	tags.fill("")
-	for op in ops:
-		var at: Vector2i = op[3]
-		var top := maxi(at.y, 0)
-		var bottom := mini(at.y + op[2].size.y, height)
-		if top >= bottom or op[0].is_empty():
-			continue
-		var tag := "%s@%d,%d|" % [op[0], at.x, at.y]
-		for strip in range(top / line, (bottom - 1) / line + 1):
-			tags[strip] += tag
-	for index in strips:
-		var signature: String = tags[index]
-		if signature != signatures[index]:
-			signatures[index] = signature
-			dirty[index] = 1
-	var start := 0
-	while start < strips:
-		if not dirty[start]:
-			start += 1
-			continue
-		var end := start
-		while end < strips and dirty[end]:
-			end += 1
-		_paint(start * line, end * line)
-		start = end
-
-## Repaint device rows TOP to BOTTOM from terrain and the operations.
-func _paint(top: int, bottom: int) -> void:
-	var limit := mini(bottom, height)
-	if limit > top:
-		frame.blit_rect(terrain, Rect2i(0, top, width, limit - top), Vector2i(0, top))
-	if bottom > limit:
-		frame.fill_rect(Rect2i(0, maxi(top, limit), width, bottom - maxi(top, limit)), CLEAR)
-	for op in ops:
-		var source: Rect2i = op[2]
-		var at: Vector2i = op[3]
-		var first := maxi(at.y, top)
-		var last := mini(at.y + source.size.y, limit)
-		if first < last:
-			frame.blend_rect(op[1], Rect2i(source.position.x, source.position.y + first - at.y, source.size.x, last - first), Vector2i(at.x, first))
-
 ## Repaint and write the changed strips of frame ID into TARGET.
 ## Return "" or a message describing the write failure.
 func publish(target: String, id: int) -> String:
-	if target != directory:
-		directory = target
-		for index in strips:
-			versions[index] = []
-		dirty.fill(1)
-	_finish()
-	batch.clear()
-	for index in strips:
-		if dirty[index]:
-			batch.append(index)
-	if batch.is_empty():
-		return ""
-	batch_id = id
-	failures.clear()
-	var task := WorkerThreadPool.add_group_task(_write, batch.size(), -1, true, "Iron Tide strips")
-	WorkerThreadPool.wait_for_group_task_completion(task)
-	if not failures.is_empty():
-		return failures[0]
-	for index in batch:
-		var kept: Array = versions[index]
-		kept.append(_strip_path(index, id))
-		while kept.size() > KEEP:
-			DirAccess.remove_absolute(kept.pop_front())
-		serials[index] = id
-		dirty[index] = 0
-	published = id
-	return ""
-
-func _strip_path(index: int, id: int) -> String:
-	return "%s/%d-%d.png" % [directory, index, id]
-
-## Encode and atomically write the batch's Nth strip; runs on the worker pool.
-func _write(n: int) -> void:
-	var index := batch[n]
-	var image := frame.get_region(Rect2i(0, index * line, width, line))
-	if (index + 1) * line <= height:
-		image.convert(Image.FORMAT_RGB8)
-	var path := _strip_path(index, batch_id)
-	var file := FileAccess.open(path + ".tmp", FileAccess.WRITE)
-	var failure := ""
-	if file == null:
-		failure = "无法写入画面文件：" + error_string(FileAccess.get_open_error())
-	else:
-		file.store_buffer(image.save_png_to_buffer())
-		file.close()
-		var result := DirAccess.rename_absolute(path + ".tmp", path)
-		if result != OK:
-			failure = "无法发布画面文件：" + error_string(result)
-	if not failure.is_empty():
-		mutex.lock()
-		failures.append(failure)
-		mutex.unlock()
+	var failure: String = publisher.publish(target, id)
+	published = publisher.published
+	return failure
 
 ## Describe the published strips for the observation.
 func description() -> Dictionary:
-	return {"id": published, "block": block, "line": line, "width": width, "strips": Array(serials)}
+	return publisher.description()

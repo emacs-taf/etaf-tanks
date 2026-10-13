@@ -12,6 +12,7 @@
 (require 'cl-lib)
 (require 'subr-x)
 (require 'etaf-ui)
+(require 'etaf-gamekit)
 (require 'etaf-tanks-theme)
 (require 'etaf-tanks-maps)
 (require 'etaf-tanks-model)
@@ -754,8 +755,10 @@ GRAPHIC shows native frames from a private directory the instance owns."
          (stacked (plist-get arrangement :stacked)) (board (plist-get arrangement :board))
          (width (+ 4 (plist-get board :columns) (if stacked 0 (+ 3 etaf-tanks--panel-columns))))
          (fits (>= (or (car (etaf-value viewport)) 0) (* width (plist-get (etaf-value metrics) :char-width))))
-         (canvas (etaf-view (etaf-tanks--board :frame frame :text text :geometry geometry :directory directory
-                                               :background (etaf-tanks--color :ui-bg))))
+         (canvas (etaf-view (etaf-gamekit-frame-canvas
+                             :frame frame :text text :geometry geometry :directory directory
+                             :background (etaf-tanks--color :ui-bg)
+                             :label "战场" :ref 'tanks-board)))
          (panel (pcase current
                   ('menu (etaf-view (etaf-tanks--menu-panel :ui ui :map-error map-error)))
                   ('editor (etaf-view (etaf-tanks--editor-panel
