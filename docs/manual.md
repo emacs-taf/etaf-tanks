@@ -163,6 +163,11 @@ untouched. Closing never saves.
 
 ## Display
 
+The header, battlefield and controls form one horizontally centered table.
+Surplus vertical space is divided 2:3 above and below it, placing the table
+slightly above the window center. Short windows remove this outer space before
+clipping; the controls and battlefield are not stretched to fill a large window.
+
 On graphic displays Godot draws the battlefield as flat vector art with soft
 lighting, rasterized at the screen's device pixels so high-density screens stay
 sharp. The board uses the preferred block size from the settings; when the

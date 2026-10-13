@@ -117,7 +117,11 @@ restored after success or failure.  Confirmations are answered with y under
             :actions
             (append
              (resize-actions "light")
-             (list (key "dark-theme" "t" (lambda () (string-match-p "浅色 · T" (text))) t))
+             ;; The minimum-size case deliberately clips the header; restore
+             ;; its controls before asserting on the theme button's label.
+             (list (action "restore-before-theme" (lambda () (etaf-tanks-gui--size 1100 44))
+                           (lambda () (fits-viewport nil)))
+                   (key "dark-theme" "t" (lambda () (string-match-p "浅色 · T" (text))) t))
              (resize-actions "dark")
              (list
               (action "restore-size" (lambda () (etaf-tanks-gui--size 1100 44))

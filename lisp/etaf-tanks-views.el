@@ -808,13 +808,17 @@ GRAPHIC shows native frames from a private directory the instance owns."
                                                                   :paused paused :stage stage :title title :compact stacked))))
                   (_ (etaf-view (etaf-label :text "正在开赴战场…" :variant 'muted))))))
     (etaf-view
-     (column :width '(vw 100) :height '(vh 100) :cross-align (if fits 'center 'start)
+     (flex :width '(vw 100) :height '(vh 100) :flex-direction 'column
+           :align-items (if fits 'center 'flex-start)
              :background-color (etaf-tanks--color :ui-bg) :color (etaf-tanks--color :ui-fg)
              :on-direction (pcase current
                              ('battle (lambda (direction) (etaf-tanks--drive ui direction)))
                              ('editor (lambda (direction) (etaf-tanks--editor-move ui direction))))
              :keys (etaf-tanks--keys ui current)
-       (column :ref 'tanks-root :width (list 'ch width) :padding '((lh 1) (ch 2)) :item-gap '(lh 1)
+       ;; Share only surplus height: keep the whole table slightly above center.
+       (box :flex-grow 2 :flex-basis '(lh 0) :min-height '(lh 0))
+       (column :ref 'tanks-root :flex-shrink 0 :width (list 'ch width)
+               :padding '((lh 1) (ch 2)) :item-gap '(lh 1)
          (flex :width 'stretch :justify-content 'space-between :align-items 'center
            (row :item-gap '(ch 2)
              (etaf-label :text "坦克大战" :variant 'strong)
@@ -833,6 +837,7 @@ GRAPHIC shows native frames from a private directory the instance owns."
                  (etaf-view (row :item-gap '(ch 3) (expr canvas) (expr panel)))))
          (etaf-alert :if (etaf-gamekit-last-error session) :title "操作未生效"
                      :message (or (etaf-gamekit-last-error session) "") :variant 'danger))
+       (box :flex-grow 3 :flex-basis '(lh 0) :min-height '(lh 0))
        (etaf-tanks--settings-dialog :ui ui)
        (etaf-tanks--help-dialog :open (etaf-tanks--ui-help ui))))))
 
