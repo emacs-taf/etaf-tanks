@@ -811,7 +811,7 @@ GRAPHIC shows native frames from a private directory the instance owns."
                                                                   :paused paused :stage stage :title title :compact stacked))))
                   (_ (etaf-view (etaf-label :text "正在开赴战场…" :variant 'muted))))))
     (etaf-view
-     (flex :width '(vw 100) :height '(vh 100) :flex-direction 'column
+     (flex :width 'stretch :height 'stretch :flex-direction 'column
            :align-items (if fits 'center 'flex-start)
              :background-color (etaf-tanks--color :ui-bg) :color (etaf-tanks--color :ui-fg)
              :on-direction (pcase current
