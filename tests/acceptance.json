@@ -3,6 +3,8 @@
   "load_path": [".", "../../etaf-gamekit", "../../etaf-ui", "../../etaf", "../../ebox", "../../ecss"],
   "support": [],
   "cases": [
+    {"name": "etaf-tanks-help-keeps-focus-during-screen-publication", "file": "tests/etaf-tanks-tests.el", "purpose": "An asynchronous backend screen change leaves the help focus and opening snapshot intact without a rejected background focus operation."},
+    {"name": "etaf-tanks-help-entries-pause-and-preserve-the-battle", "file": "tests/etaf-tanks-tests.el", "purpose": "Question mark, F1 and the help button open the same in-buffer modal, pause the real battlefield, block background keys and preserve paused state and focus after layered Escape."},
     {"name": "etaf-tanks-maps-are-validated-before-play", "file": "tests/etaf-tanks-tests.el", "purpose": "Previews report map defects and an invalid or undersized map cannot start a battle."},
     {"name": "etaf-tanks-settings-and-difficulty-are-validated", "file": "tests/etaf-tanks-tests.el", "purpose": "Out-of-range settings are rejected and difficulty sets the starting lives."},
     {"name": "etaf-tanks-losing-the-base-ends-the-battle", "file": "tests/etaf-tanks-tests.el", "purpose": "A shell reaching the eagle base loses the battle."},

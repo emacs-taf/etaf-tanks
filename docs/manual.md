@@ -64,7 +64,14 @@ the stage's opening resources.
 | Editor | Arrows, 1–9 | Move the cursor; choose a brush |
 | Editor | F, D, B, U | Paint, toggle continuous painting, brush size, undo |
 | Editor | P, C-s, M | Test-play, save the map, return to the menu |
-| Any | S, T, F1, Q | Settings, light/dark palette, rules and keys, close |
+| Any | S, T, ? / F1, Q | Settings, light/dark palette, rules and keys, close |
+
+`?`, `F1` and **说明** open the same read-only, searchable help modal inside
+the current game buffer. It lists the active screen's real bindings and keeps
+the game rules as usage notes, rather than a second static key table. Wide
+windows use two columns; narrow windows use a scrolling column. Escape first
+leaves search editing, then closes help. Clicking the outer shade also closes
+it without activating the game underneath; the opening focus is restored.
 
 Every key also has a button. Help, settings and file prompts pause a running
 battle first and dismissing them does not resume it. The game pauses when its

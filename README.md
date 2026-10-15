@@ -83,7 +83,12 @@ keys and press `Return` or `G`. Every key also has a button.
 | Editor | Arrows, `1`–`9` | Move the cursor; choose a brush |
 | Editor | `F`, `D`, `B`, `U` | Paint, toggle continuous painting, brush size, undo |
 | Editor | `P`, `C-s`, `M` | Test-play, save the map, return to the menu |
-| Any | `S`, `T`, `F1`, `Q` | Settings, light/dark palette, rules and keys, close |
+| Any | `S`, `T`, `?` / `F1`, `Q` | Settings, light/dark palette, rules and keys, close |
+
+`?`, `F1` and **说明** open the same searchable help modal inside the game
+buffer, without splitting an Emacs window. Its keys follow the current screen;
+rules remain available as usage notes. Escape leaves search editing first,
+then closes help; clicking outside closes it too and restores the opening focus.
 
 Help, settings and file prompts pause a running battle first, and dismissing
 them does not resume it. Retrying or leaving a running battle asks for

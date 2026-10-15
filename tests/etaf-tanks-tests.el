@@ -60,8 +60,13 @@ reading it right after an action could still show the previous state."
   (plist-get (etaf-gamekit-observation session) key))
 
 (defun etaf-tanks-test--phase-p (session &rest phases)
-  "Return a predicate that holds while SESSION shows one of PHASES."
-  (lambda () (member (etaf-tanks-test--view session :phase) phases)))
+  "Return a predicate that holds after SESSION publishes one of PHASES.
+An acknowledged backend phase precedes the coalesced display; sending the
+next key before that publication would operate the previous screen."
+  (lambda ()
+    (let ((observed (etaf-tanks-test--view session :phase))
+          (published (etaf-gamekit-view session :phase)))
+      (and (member observed phases) (equal observed published)))))
 
 (defun etaf-tanks-test--start ()
   "Start an instance at the stage select, cleaning up if startup fails."
@@ -294,6 +299,65 @@ battle's published play phase from passing for the new one."
     ;; A paused battle is left without confirmation.
     (etaf-tanks-test--keys session "m")
     (etaf-tanks-test--wait session (etaf-tanks-test--phase-p session "menu"))))
+
+(ert-deftest etaf-tanks-help-entries-pause-and-preserve-the-battle ()
+  "Question mark, F1 and the help button share read-only help and pause policy."
+  (etaf-tanks-test--with-sessions (session)
+    (etaf-tanks-test--begin session etaf-tanks-test--sentry)
+    (let* ((buffer (etaf-gamekit-buffer session))
+           (runtime (etaf-runtime-for-buffer buffer)))
+      (dolist (entry '("?" "<f1>" button))
+        (etaf-tanks-test--act session "pause" '(:paused :false))
+        (etaf-focus runtime (if (eq entry 'button) 'tanks-help 'tanks-board))
+        (let ((focus (etaf-focused-host-ref runtime))
+              (windows (window-list)) (buffers (buffer-list)))
+          (if (eq entry 'button) (etaf-activate runtime)
+            (etaf-tanks-test--keys session entry))
+          (etaf-tanks-test--wait
+           session (lambda () (eq t (etaf-tanks-test--view session :paused))))
+          (let* ((data (etaf-help-data runtime))
+                 (labels (mapcan (lambda (group)
+                                   (mapcar (lambda (binding) (plist-get binding :label))
+                                           (plist-get group :entries)))
+                                 (plist-get data :groups)))
+                 (title (plist-get data :title)))
+            (should (equal title "坦克大战"))
+            (should (member "开火" labels)))
+          (should (equal windows (window-list)))
+          (should (equal buffers (buffer-list)))
+          (should (eq (window-buffer) buffer))
+          (let ((before (etaf-tanks-test--stable session)))
+            (etaf-tanks-test--keys session "f p <right> C-v")
+            (accept-process-output nil 0.15)
+            (let ((after (etaf-tanks-test--stable session)))
+              (should (equal before after)))
+            (etaf-tanks-test--keys session "/ f <escape>")
+            (let ((visible (string-match-p "快捷键" (etaf-tanks-test--text session))))
+              (should visible))
+            (etaf-tanks-test--keys session "<escape>")
+            (let ((after (etaf-tanks-test--stable session))
+                  (restored (etaf-focused-host-ref runtime))
+                  (closed-again (etaf-help-close runtime)))
+              (should (equal before after))
+              (should (equal focus restored))
+              (should-not closed-again))))))))
+
+(ert-deftest etaf-tanks-help-keeps-focus-during-screen-publication ()
+  "An asynchronous screen change cannot steal the help's focus or snapshot."
+  (etaf-tanks-test--with-sessions (session)
+    (let ((runtime (etaf-runtime-for-buffer (etaf-gamekit-buffer session))))
+      (etaf-tanks-test--keys session "?")
+      (let ((focus (etaf-focused-host-ref runtime))
+            (data (etaf-help-data runtime)))
+        (etaf-gamekit-action session "edit"
+                             (list :map (etaf-tanks-test--stage 1) :x 0 :y 0 :size 1))
+        (etaf-tanks-test--wait
+         session (lambda () (equal (etaf-gamekit-view session :phase) "edit")))
+        (let ((after (etaf-focused-host-ref runtime))
+              (snapshot (etaf-help-data runtime)))
+          (should (equal focus after))
+          (should (equal data snapshot)))
+        (etaf-help-close runtime)))))
 
 (ert-deftest etaf-tanks-editor-paints-saves-and-test-plays ()
   "Editing a stage saves a custom map that test play and the catalog use."

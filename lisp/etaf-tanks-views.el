@@ -36,7 +36,7 @@
 (cl-defstruct (etaf-tanks--ui (:constructor etaf-tanks--ui-make) (:copier nil))
   "Presentation state of one tank battle; slots hold reactive refs."
   session metrics directory appearance settings difficulty catalog tab selection progress origin
-  draft cursor brush brush-size pen history dirty help settings-open)
+  draft cursor brush brush-size pen history dirty settings-open)
 
 ;;; Catalog and selection
 
@@ -128,7 +128,7 @@
 
 (defun etaf-tanks--drive (ui direction)
   "Drive UI's tank toward DIRECTION, an ETAF direction symbol."
-  (if (or (etaf-value (etaf-tanks--ui-help ui)) (etaf-value (etaf-tanks--ui-settings-open ui)))
+  (if (etaf-value (etaf-tanks--ui-settings-open ui))
       'release
     (etaf-tanks--send (etaf-tanks--ui-session ui) "drive"
                       (list :direction (pcase direction ('up "n") ('down "s") ('left "w") (_ "e"))))
@@ -257,7 +257,7 @@ DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
 
 (defun etaf-tanks--editor-move (ui direction)
   "Move UI's cursor toward DIRECTION and paint while the pen is down."
-  (if (or (etaf-value (etaf-tanks--ui-help ui)) (etaf-value (etaf-tanks--ui-settings-open ui)))
+  (if (etaf-value (etaf-tanks--ui-settings-open ui))
       'release
     (let* ((cursor (etaf-value (etaf-tanks--ui-cursor ui)))
            (size (etaf-tanks--draft-size (etaf-value (etaf-tanks--ui-draft ui))))
@@ -553,18 +553,12 @@ COMPACT arranges the essentials in three rows under the board."
         (etaf-button :label "完成" :ref 'tanks-settings-done
                      :on-press (lambda () (setf (etaf-value open) nil)))))))
 
-(etaf-define-component etaf-tanks--help-dialog (&key open)
-  "Explain the rules and every key."
-  :view
-  (etaf-dialog :open open :title "坦克大战 · 规则与按键" :width '(ch 66) :compact t :close-label "关闭"
-               :on-close (lambda () (setf (etaf-value open) nil))
-    (column :item-gap '(lh 1)
-      (etaf-label :wrap-mode 'word :text "守住底部的雄鹰基地，击毁本关全部敌车即过关。基地被击中、或生命耗尽，战斗结束。敌车从上方出生点分批出场，场上数量有上限。")
-      (etaf-label :wrap-mode 'word :text "敌车：普通车慢；快速车跑得快；重炮车炮弹飞得快；装甲车要打 4 炮，颜色随剩余装甲变化。闪红光的敌车被击毁后掉落奖励：头盔护盾、时钟冻结、铁锹加固基地、星星升级火力、手雷全灭、坦克加命。")
-      (etaf-label :wrap-mode 'word :text "地形：砖墙可打穿；钢板要三星火力才能打穿；河流挡车不挡弹；树林遮挡视线；冰面会打滑。")
-      (etaf-label :wrap-mode 'word :text "战斗：方向键驾驶，Shift+方向键原地转向，F 开火，X 停车，P 暂停，R 重开本关，N 下一关，M 返回，C-s 存档，C-o 读档。")
-      (etaf-label :wrap-mode 'word :text "菜单：方向键选关、回车出击，G 出击，E 编辑所选地图，N 新建地图，D 切换难度。编辑：方向键移动光标，1–9 选画笔，F 绘制，D 连续绘制，B 笔刷大小，U 撤销，C-s 保存，P 试玩。")
-      (etaf-label :wrap-mode 'word :text "S 打开设置：游戏速度、坦克速度、方向键灵敏度、驾驶方式和帧率立即生效。T 切换亮暗，F1 打开本说明，Q 退出。"))))
+(defconst etaf-tanks--help-notes
+  '("守住底部的雄鹰基地，击毁本关全部敌车即过关。基地被击中、或生命耗尽，战斗结束。敌车从上方出生点分批出场，场上数量有上限。"
+    "敌车：普通车慢；快速车跑得快；重炮车炮弹飞得快；装甲车要打 4 炮，颜色随剩余装甲变化。闪红光的敌车被击毁后掉落奖励：头盔护盾、时钟冻结、铁锹加固基地、星星升级火力、手雷全灭、坦克加命。"
+    "地形：砖墙可打穿；钢板要三星火力才能打穿；河流挡车不挡弹；树林遮挡视线；冰面会打滑。"
+    "设置中的游戏速度、坦克速度、方向键灵敏度、驾驶方式和帧率立即生效。打开帮助、设置或文件提示会先暂停战斗，关闭后须主动继续。")
+  "Rules and workflow notes; bindings come from the active key scope.")
 
 ;;; Root
 
@@ -577,9 +571,7 @@ COMPACT arranges the essentials in three rows under the board."
                        (list "t" (lambda () (setf (etaf-value (etaf-tanks--ui-appearance ui))
                                                   (if (eq (etaf-value (etaf-tanks--ui-appearance ui)) 'dark) 'light 'dark)))
                              "亮暗主题")
-                       (list "<f1>" (lambda () (etaf-tanks--pause-for-input session)
-                                      (setf (etaf-value (etaf-tanks--ui-help ui)) t))
-                             "规则与按键")
+                       (list "<f1>" #'etaf-help "规则与按键")
                        (list "q" (lambda () (etaf-tanks-close session)) "退出"))))
     (append
      (pcase screen
@@ -637,7 +629,17 @@ COMPACT arranges the essentials in three rows under the board."
   "Focus the Host that SCREEN of UI starts from, once SCREEN is shown."
   (when (memq screen '(menu battle editor))
     (when-let* ((runtime (etaf-current-runtime)))
-      (etaf-focus runtime (etaf-tanks--focus-target ui screen)))))
+      (let* ((focus (etaf-focused-host-ref runtime))
+             (ancestry (and focus (gethash focus
+                                          (etaf-runtime-host-ancestries runtime (list focus))))))
+        ;; A backend screen publication must not enter the background of
+        ;; help or another modal that currently owns input.
+        (unless (cl-some (lambda (ref)
+                           (eq (plist-get (etaf-runtime-host-props-for runtime ref)
+                                          :focus-scope)
+                               'modal))
+                         ancestry)
+          (etaf-focus runtime (etaf-tanks--focus-target ui screen)))))))
 
 (etaf-define-component etaf-tanks--app (&key session graphic)
   "Compose one tank battle over SESSION.
@@ -665,7 +667,7 @@ GRAPHIC shows native frames from a private directory the instance owns."
                   :progress progress :origin (etaf-ref nil)
                   :draft (etaf-ref (list :name "新地图" :counts (list 20 6 3 1) :rows (etaf-tanks--blank-rows 40 30)))
                   :cursor (etaf-ref (cons 0 0)) :brush (etaf-ref ?#) :brush-size (etaf-ref 1) :pen (etaf-ref nil)
-                  :history (etaf-ref nil) :dirty (etaf-ref nil) :help (etaf-ref nil) :settings-open (etaf-ref nil)))
+                  :history (etaf-ref nil) :dirty (etaf-ref nil) :settings-open (etaf-ref nil)))
              (theme (etaf-computed (lambda () (if (eq (etaf-value appearance) 'dark)
                                                   etaf-tanks--dark-theme etaf-tanks--light-theme))
                                    :test #'equal))
@@ -818,6 +820,8 @@ GRAPHIC shows native frames from a private directory the instance owns."
                              ('battle (lambda (direction) (etaf-tanks--drive ui direction)))
                              ('editor (lambda (direction) (etaf-tanks--editor-move ui direction))))
              :keys (etaf-tanks--keys ui current)
+             :aria-label "坦克大战" :help etaf-tanks--help-notes
+             :on-help-open (lambda () (etaf-tanks--pause-for-input session))
        ;; Share only surplus height: keep the whole table slightly above center.
        (box :flex-grow 2 :flex-basis '(lh 0) :min-height '(lh 0))
        (column :ref 'tanks-root :flex-shrink 0 :width (list 'ch width)
@@ -833,16 +837,14 @@ GRAPHIC shows native frames from a private directory the instance owns."
              (etaf-button :label (if (eq (etaf-value appearance) 'dark) "浅色 · T" "深色 · T") :ref 'tanks-theme :variant 'ghost
                           :on-press (lambda () (setf (etaf-value appearance) (if (eq (etaf-value appearance) 'dark) 'light 'dark))))
              (etaf-button :label "说明 · F1" :ref 'tanks-help :variant 'ghost
-                          :on-press (lambda () (etaf-tanks--pause-for-input session)
-                                      (setf (etaf-value (etaf-tanks--ui-help ui)) t)))))
+                          :on-press #'etaf-help)))
          (expr (if stacked
                    (etaf-view (column :item-gap '(lh 1) (expr canvas) (expr panel)))
                  (etaf-view (row :item-gap '(ch 3) (expr canvas) (expr panel)))))
          (etaf-alert :if (etaf-gamekit-last-error session) :title "操作未生效"
                      :message (or (etaf-gamekit-last-error session) "") :variant 'danger))
        (box :flex-grow 3 :flex-basis '(lh 0) :min-height '(lh 0))
-       (etaf-tanks--settings-dialog :ui ui)
-       (etaf-tanks--help-dialog :open (etaf-tanks--ui-help ui))))))
+       (etaf-tanks--settings-dialog :ui ui)))))
 
 (defun etaf-tanks--view (session)
   "Compose SESSION's application view from public ETAF and GameKit APIs."

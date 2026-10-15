@@ -90,7 +90,9 @@
 ;; Start and display an independent instance at the stage select; return its
 ;; GameKit instance. Requires Godot installed by GameKit. Arrows choose a
 ;; stage and Return starts it; in battle arrows drive, Shift+arrows turn in
-;; place, F fires, P pauses and F1 lists every key. Battles are saved and
+;; place, F fires and P pauses.  ? / F1 and the help button share searchable
+;; modal help inside the game buffer.  Opening help pauses a running battle;
+;; closing it restores focus without resuming.  Battles are saved and
 ;; loaded only through explicit paths (C-s and C-o); a restore validates the
 ;; snapshot, resumes paused and clears in-flight shells and spawns.
 ;;

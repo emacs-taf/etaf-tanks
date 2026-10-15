@@ -142,8 +142,19 @@ restored after success or failure.  Confirmations are answered with y under
                                   (accept-process-output nil 0.01)))
                             (switch-to-buffer (etaf-gamekit-buffer session)) (kill-buffer other))))
                       (lambda () (eq t (view :paused))))
-              (key "help" "<f1>" (lambda () (string-match-p "规则与按键" (text))) t)
-              (key "close-help" "<escape>" (lambda () (not (string-match-p "规则与按键" (text)))))
+              (key "resume-before-help" "p" (lambda () (eq :false (view :paused))))
+              (key "help" "?" (lambda () (and (eq t (view :paused))
+                                                (string-match-p "搜索快捷键或操作" (text)))) t)
+              (key "close-help" "<escape>" (lambda () (and (eq t (view :paused))
+                                                           (not (string-match-p "搜索快捷键或操作" (text))))))
+              (key "help-f1" "<f1>" (lambda () (string-match-p "搜索快捷键或操作" (text))))
+              (key "search-help" "/ f <escape>"
+                   (lambda () (and (eq t (view :paused))
+                                   (not (etaf-text-input-active-p runtime))
+                                   (string-match-p "快捷键" (text)))))
+              (key "close-searched-help" "<escape>"
+                   (lambda () (and (eq t (view :paused))
+                                   (not (string-match-p "快捷键" (text))))))
               (key "settings" "s" (lambda () (string-match-p "游戏速度" (text))) t)
               (key "close-settings" "<escape>" (lambda () (not (string-match-p "游戏速度" (text)))))
               (action "save"
