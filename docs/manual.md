@@ -75,8 +75,13 @@ it without activating the game underneath; the opening focus is restored.
 
 Every key also has a button. Help, settings and file prompts pause a running
 battle first and dismissing them does not resume it. The game pauses when its
-buffer stops being the selected window's buffer. Retrying or leaving a running
-battle asks for confirmation; a paused battle is left immediately.
+buffer stops being the selected window's buffer, or when real keyboard focus
+leaves an embedded game for its host or another application. Returning restores
+the game without resuming it; press `P` explicitly to continue. Backend screen
+updates do not reclaim focus from the host. In an embedded game, Escape closes
+help or settings before returning to the host, one layer per press, without
+closing or restarting the battle. Retrying or leaving a running battle asks
+for confirmation; a paused battle is left immediately.
 
 ## Settings
 

@@ -342,6 +342,75 @@ battle's published play phase from passing for the new one."
               (should (equal focus restored))
               (should-not closed-again))))))))
 
+(ert-deftest etaf-tanks-embedded-focus-exit-pauses-and-preserves-battle ()
+  "Leaving an embedded battle pauses it; reentry and popup exits keep its state."
+  (etaf-tanks-test--with-sessions (session)
+    (let ((buffer (generate-new-buffer " *tanks-embedded-focus*"))
+          (exits 0))
+      (unwind-protect
+          (progn
+            (etaf-mount
+             buffer
+             (etaf-view
+              (column
+                (box :ref 'tanks-test-shell :tab-index 0 "Host")
+                (box :key-scope 'local :region '(:id tanks-test-content :label "Battle")
+                     :on-dismiss (lambda () (cl-incf exits)
+                                   (etaf-focus (etaf-runtime-for-buffer buffer) 'tanks-test-shell))
+                  (expr (etaf-tanks-view session)))))
+             '(:viewport-width 1300 :viewport-height 50))
+            (switch-to-buffer buffer)
+            (let ((runtime (etaf-runtime-for-buffer buffer)))
+              (etaf-focus runtime 'tanks-board)
+              (execute-kbd-macro (kbd "g"))
+              (etaf-tanks-test--wait session (etaf-tanks-test--phase-p session "play"))
+              (execute-kbd-macro (kbd "<escape>"))
+              (should (= exits 1))
+              (etaf-tanks-test--wait
+               session (lambda () (eq (etaf-tanks-test--view session :paused) t)))
+              (should (eq (etaf-focused-host-ref runtime) 'tanks-test-shell))
+              (let ((before (etaf-tanks-test--stable session)))
+                (accept-process-output nil 0.12)
+                (etaf-region-focus 'tanks-test-content runtime)
+                (should (eq (etaf-focused-host-ref runtime) 'tanks-board))
+                (execute-kbd-macro (kbd "s"))
+                (let ((settings-focus (etaf-focused-host-ref runtime)))
+                  (execute-kbd-macro (kbd "? <escape>"))
+                  (should (= exits 1))
+                  (should (eq (etaf-focused-host-ref runtime) settings-focus)))
+                (execute-kbd-macro (kbd "<escape>"))
+                (should (= exits 1))
+                (should (eq (etaf-focused-host-ref runtime) 'tanks-board))
+                (execute-kbd-macro (kbd "<escape>"))
+                (should (= exits 2))
+                (etaf-tanks-test--wait session)
+                (let ((after (etaf-tanks-test--stable session)))
+                  (should (equal before after))))))
+        (when-let* ((runtime (etaf-runtime-for-buffer buffer))) (etaf-unmount runtime))
+        (kill-buffer buffer)))))
+
+(ert-deftest etaf-tanks-embedded-publication-keeps-host-focus ()
+  "A delayed battle screen cannot reclaim focus after the user left the game."
+  (etaf-tanks-test--with-sessions (session)
+    (let ((buffer (generate-new-buffer " *tanks-background-screen*")))
+      (unwind-protect
+          (progn
+            (etaf-mount
+             buffer
+             (etaf-view
+              (column
+                (box :ref 'tanks-test-shell :tab-index 0 "Host")
+                (box :key-scope 'local (expr (etaf-tanks-view session)))))
+             '(:viewport-width 1300 :viewport-height 50))
+            (let ((runtime (etaf-runtime-for-buffer buffer)))
+              (etaf-focus runtime 'tanks-test-shell)
+              (etaf-gamekit-action session "edit"
+                                   (list :map (etaf-tanks-test--stage 1) :x 0 :y 0 :size 1))
+              (etaf-tanks-test--wait session (etaf-tanks-test--phase-p session "edit"))
+              (should (eq (etaf-focused-host-ref runtime) 'tanks-test-shell))))
+        (when-let* ((runtime (etaf-runtime-for-buffer buffer))) (etaf-unmount runtime))
+        (kill-buffer buffer)))))
+
 (ert-deftest etaf-tanks-help-keeps-focus-during-screen-publication ()
   "An asynchronous screen change cannot steal the help's focus or snapshot."
   (etaf-tanks-test--with-sessions (session)

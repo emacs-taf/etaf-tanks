@@ -29,7 +29,8 @@ artwork and stages are original.
 - Settings that apply immediately: game and tank speed, key sensitivity,
   driving mode, frame rate and, on graphic displays, board size.
 - Snapshots through `C-s` and `C-o`; a battle pauses when its buffer stops
-  being the selected window's buffer.
+  being the selected window's buffer or focus leaves an embedded game.
+  Reentering preserves the battle and leaves it paused.
 
 ## Prerequisites
 

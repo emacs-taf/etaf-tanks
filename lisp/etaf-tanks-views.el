@@ -625,26 +625,29 @@ COMPACT arranges the essentials in three rows under the board."
           'tanks-start))
     'tanks-board))
 
-(defun etaf-tanks--focus-screen (ui screen)
-  "Focus the Host that SCREEN of UI starts from, once SCREEN is shown."
+(defun etaf-tanks--focus-screen (ui screen app-ref)
+  "Focus SCREEN's entry only while UI's APP-REF still owns keyboard focus."
   (when (memq screen '(menu battle editor))
     (when-let* ((runtime (etaf-current-runtime)))
       (let* ((focus (etaf-focused-host-ref runtime))
              (ancestry (and focus (gethash focus
                                           (etaf-runtime-host-ancestries runtime (list focus))))))
-        ;; A backend screen publication must not enter the background of
-        ;; help or another modal that currently owns input.
-        (unless (cl-some (lambda (ref)
+        ;; Publication may replace a control inside this game, but must not
+        ;; reenter it after the user returned to the host or another app.
+        (when (and (or (null focus) (memq app-ref ancestry))
+                   (not (cl-some
+                         (lambda (ref)
                            (eq (plist-get (etaf-runtime-host-props-for runtime ref)
                                           :focus-scope)
                                'modal))
-                         ancestry)
+                         ancestry)))
           (etaf-focus runtime (etaf-tanks--focus-target ui screen)))))))
 
 (etaf-define-component etaf-tanks--app (&key session graphic)
   "Compose one tank battle over SESSION.
 GRAPHIC shows native frames from a private directory the instance owns."
-  :bindings ((metrics (etaf-computed (lambda () (etaf-tanks--metrics graphic)) :test #'equal))
+  :bindings ((app-ref (etaf-local-ref 'application))
+             (metrics (etaf-computed (lambda () (etaf-tanks--metrics graphic)) :test #'equal))
              (directory (and graphic (make-temp-file "etaf-tanks-" t)))
              (appearance (etaf-ref (if (eq etaf-tanks-appearance 'auto)
                                        (if (eq (frame-parameter nil 'background-mode) 'dark) 'dark 'light)
@@ -740,8 +743,8 @@ GRAPHIC shows native frames from a private directory the instance owns."
     (etaf-watch phase (lambda (now old)
                         (when (and (member now '("cleared" "over")) (member old '("intro" "play")))
                           (etaf-tanks--record ui now))))
-    (etaf-on-mounted (lambda () (etaf-tanks--focus-screen ui (etaf-value screen))))
-    (etaf-watch screen (lambda (now _old) (etaf-tanks--focus-screen ui now)) :flush 'post)
+    (etaf-on-mounted (lambda () (etaf-tanks--focus-screen ui (etaf-value screen) app-ref)))
+    (etaf-watch screen (lambda (now _old) (etaf-tanks--focus-screen ui now app-ref)) :flush 'post)
     (etaf-watch viewport
                 (lambda (_size _old)
                   (when-let* ((buffer (etaf-gamekit-buffer session))
@@ -813,7 +816,8 @@ GRAPHIC shows native frames from a private directory the instance owns."
                                                                   :paused paused :stage stage :title title :compact stacked))))
                   (_ (etaf-view (etaf-label :text "正在开赴战场…" :variant 'muted))))))
     (etaf-view
-     (flex :width 'stretch :height 'stretch :flex-direction 'column
+     (flex :ref app-ref :width 'stretch :height 'stretch :flex-direction 'column
+           :on-focus-leave (lambda () (etaf-tanks--pause-for-input session))
            :align-items (if fits 'center 'flex-start)
              :background-color (etaf-tanks--color :ui-bg) :color (etaf-tanks--color :ui-fg)
              :on-direction (pcase current

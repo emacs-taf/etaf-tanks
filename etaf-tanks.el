@@ -84,6 +84,8 @@
 ;;;###autoload (autoload 'etaf-tanks-view "etaf-tanks" nil t)
 ;; Return the reactive View for SESSION, suitable for embedding in a host such
 ;; as an etaf-desktop window. The caller owns SESSION's display and lifecycle.
+;; Leaving its focus subtree pauses a running battle without resetting it;
+;; reentry does not resume. Delayed screen updates do not reclaim host focus.
 ;;
 ;; Function: etaf-tanks-doctor ()
 ;; Return capability facts for playing tanks.  The shape matches
