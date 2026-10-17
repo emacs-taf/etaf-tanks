@@ -2,7 +2,7 @@
 ;;; etaf-tanks.el --- A Battle City-style tank game for Emacs
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
-;; Version: 0.2.0
+;; Version: 0.2.1
 ;; Package-Requires: ((emacs "29.1") (etaf-gamekit "0.1.0") (etaf-ui "0.1.0"))
 ;;; Commentary:
 ;; This game follows the rules of the 1985 arcade tank battle: defend the
@@ -85,6 +85,12 @@
 ;; Return the reactive View for SESSION, suitable for embedding in a host such
 ;; as an etaf-desktop window. The caller owns SESSION's display and lifecycle.
 ;;
+;; Function: etaf-tanks-doctor ()
+;; Return capability facts for playing tanks.  The shape matches
+;; `etaf-install-doctor': the simulation host and its rules come from
+;; `etaf-gamekit', which is an ordinary package dependency, while the Godot
+;; runtime is a local build that must be detected before a battle can start.
+;;
 ;; Function: etaf-tanks-open ()
 ;;;###autoload (autoload 'etaf-tanks-open "etaf-tanks" nil t)
 ;; Start and display an independent instance at the stage select; return its
@@ -137,8 +143,27 @@ small for the preference uses smaller blocks, down to 10 pixels."
 (defcustom etaf-tanks-progress-file (locate-user-emacs-file "etaf-tanks/progress.eld")
   "File recording cleared stages and best scores."
   :type 'file :group 'etaf-tanks)
+(defun etaf-tanks-doctor ()
+  "Return capability facts for playing tanks.
+The shape matches `etaf-install-doctor': :required and :optional lists of
+(LABEL AVAILABLE REMEDY).  Nothing is installed or changed."
+  (list :required
+        (list (list "Godot runtime"
+                    (file-directory-p (expand-file-name "~/.cache/emacs-taf/game-engines/godot"))
+                    "Build it once with: make -C etaf-gamekit engine"))
+        :optional nil))
 (defconst etaf-tanks--directory
   (file-name-directory (or load-file-name buffer-file-name)))
+;; Installed archives compile each module separately, so `lisp' must be on
+;; `load-path' while the byte compiler runs, not only when this entry loads.
+;;;###autoload
+(eval-and-compile
+  (add-to-list 'load-path
+               (expand-file-name "lisp"
+                                 (file-name-directory
+                                  (or load-file-name
+                                      (bound-and-true-p byte-compile-current-file)
+                                      buffer-file-name)))))
 (let ((load-path (cons (expand-file-name "lisp" etaf-tanks--directory) load-path)))
   (require 'etaf-tanks-theme)
   (require 'etaf-tanks-maps)

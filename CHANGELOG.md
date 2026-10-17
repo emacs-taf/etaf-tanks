@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+### Added
+
+- `etaf-tanks-doctor` reports whether GameKit's local Godot runtime exists, so
+  `M-x etaf-install` shows the missing prerequisite with its one build command
+  instead of failing when a battle starts.
+
+### Fixed
+
+- The package entry now puts `lisp/` on `load-path` while the byte compiler
+  runs, so an archive installation compiles every module.
+
 ### Changed
 
 - `?`, `F1` and the help button now share searchable keyboard help in the
