@@ -2,7 +2,7 @@
 ;;; etaf-tanks.el --- A Battle City-style tank game for Emacs
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
-;; Version: 0.2.1
+;; Version: 0.2.2
 ;; Package-Requires: ((emacs "29.1") (etaf-gamekit "0.1.0") (etaf-ui "0.1.0"))
 ;;; Commentary:
 ;; This game follows the rules of the 1985 arcade tank battle: defend the
@@ -156,13 +156,15 @@ The shape matches `etaf-install-doctor': :required and :optional lists of
   (file-name-directory (or load-file-name buffer-file-name)))
 ;; Installed archives compile each module separately, so `lisp' must be on
 ;; `load-path' while the byte compiler runs, not only when this entry loads.
+;; `byte-compile-current-file` names the file being compiled; `load-file-name`
+;; can still name the script that started the installation.
 ;;;###autoload
 (eval-and-compile
   (add-to-list 'load-path
                (expand-file-name "lisp"
                                  (file-name-directory
-                                  (or load-file-name
-                                      (bound-and-true-p byte-compile-current-file)
+                                  (or (bound-and-true-p byte-compile-current-file)
+                                      load-file-name
                                       buffer-file-name)))))
 (let ((load-path (cons (expand-file-name "lisp" etaf-tanks--directory) load-path)))
   (require 'etaf-tanks-theme)

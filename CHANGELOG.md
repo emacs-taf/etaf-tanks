@@ -11,7 +11,8 @@
 ### Fixed
 
 - The package entry now puts `lisp/` on `load-path` while the byte compiler
-  runs, so an archive installation compiles every module.
+  runs, so an archive installation compiles every module. The directory comes
+  from the file being compiled, not from the script that started the install.
 
 ### Changed
 
