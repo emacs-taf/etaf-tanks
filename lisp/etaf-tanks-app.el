@@ -23,17 +23,18 @@
     (etaf-tanks--pause-for-input etaf-tanks--session)))
 
 (defun etaf-tanks-create ()
-  "Return a session for etaf-tanks-view without displaying it.
+  "Return a session whose single host renders it through `etaf-tanks-view'.
 
-The caller owns the session's display and lifecycle; release it with
-`etaf-gamekit-close'."
-  (etaf-gamekit-start etaf-tanks-game))
+The session owns the battle and its backend process but mounts no
+presentation of its own, so one host window (or `etaf-tanks-open') is the
+only rendering.  Release it with `etaf-gamekit-close'."
+  (etaf-gamekit-start etaf-tanks-game :display nil))
 
 (defun etaf-tanks-open ()
   "Start and display an independent tank battle."
   (interactive)
   (let* ((session (etaf-tanks-create))
-         (buffer (etaf-gamekit-buffer session)))
+         (buffer (etaf-gamekit-display session)))
     (with-current-buffer buffer
       (setq-local etaf-tanks--session session cursor-type nil mode-line-format nil truncate-lines t
                   buffer-display-table (copy-sequence (or standard-display-table (make-display-table))))
