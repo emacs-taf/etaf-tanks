@@ -144,20 +144,20 @@ sources; the callbacks own every change."
                      :variant (if (eq (car entry) (etaf-value brush)) 'secondary 'ghost)
                      :on-press (lambda () (funcall on-brush (car entry)))))
       (grid :grid-template-columns '((fr 1) (fr 1)) :gap '((lh 0) (ch 1)) :width 'stretch
-        (etaf-button :label "绘制 · F" :ref 'tanks-map-paint :on-press on-paint)
-        (etaf-button :label "撤销 · U" :ref 'tanks-map-undo :variant 'secondary
+        (etaf-button :label "绘制 · f" :ref 'tanks-map-paint :on-press on-paint)
+        (etaf-button :label "撤销 · u" :ref 'tanks-map-undo :variant 'secondary
                      :disabled (not (etaf-value history)) :on-press on-undo)
-        (etaf-button :label "笔刷大小 · B" :ref 'tanks-brush-size :variant 'ghost :on-press on-size)
-        (etaf-button :label (if (etaf-value pen) "连续：开 · D" "连续：关 · D") :ref 'tanks-pen
+        (etaf-button :label "笔刷大小 · b" :ref 'tanks-brush-size :variant 'ghost :on-press on-size)
+        (etaf-button :label (if (etaf-value pen) "连续：开 · d" "连续：关 · d") :ref 'tanks-pen
                      :variant (if (etaf-value pen) 'secondary 'ghost) :on-press on-pen)))
     (etaf-alert :if (etaf-value map-error) :title "暂不可玩" :message (or (etaf-value map-error) "") :variant 'warning)
     (grid :grid-template-columns '((fr 1) (fr 1)) :gap '((lh 0) (ch 1)) :width 'stretch
-      (etaf-button :label "试玩 · P" :ref 'tanks-map-test :disabled (and (etaf-value map-error) t) :on-press on-test)
+      (etaf-button :label "试玩 · p" :ref 'tanks-map-test :disabled (and (etaf-value map-error) t) :on-press on-test)
       (etaf-button :label "保存 · C-s" :ref 'tanks-map-save :variant 'secondary :on-press on-save)
       (etaf-button :label "另存为" :ref 'tanks-map-save-as :variant 'ghost :on-press on-save-as)
       (etaf-button :label "新建" :ref 'tanks-map-new :variant 'ghost :on-press on-new)
       (etaf-button :label "打开" :ref 'tanks-map-open :variant 'ghost :on-press on-open)
-      (etaf-button :label "返回 · M" :ref 'tanks-map-close :variant 'ghost :on-press on-close))))
+      (etaf-button :label "返回 · m" :ref 'tanks-map-close :variant 'ghost :on-press on-close))))
 
 (provide 'etaf-tanks-editor)
 ;;; etaf-tanks-editor.el ends here

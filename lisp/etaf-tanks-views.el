@@ -406,11 +406,11 @@ when that allows larger blocks."
     (etaf-segmented :options etaf-tanks--difficulties :bind difficulty)
     (etaf-alert :if (etaf-value map-error) :title "地图无法游玩" :message (or (etaf-value map-error) "") :variant 'warning)
     (grid :grid-template-columns '((fr 1) (fr 1)) :gap '((lh 0) (ch 1)) :width 'stretch
-      (etaf-button :label "出击 · G" :ref 'tanks-start :disabled (or (null (etaf-value entry)) (and (etaf-value map-error) t))
+      (etaf-button :label "出击 · g" :ref 'tanks-start :disabled (or (null (etaf-value entry)) (and (etaf-value map-error) t))
                    :on-press (lambda () (etaf-tanks--start-selected ui)))
-      (etaf-button :label "编辑 · E" :ref 'tanks-edit :variant 'secondary :disabled (null (etaf-value entry))
+      (etaf-button :label "编辑 · e" :ref 'tanks-edit :variant 'secondary :disabled (null (etaf-value entry))
                    :on-press (lambda () (etaf-tanks--editor-edit-selected ui)))
-      (etaf-button :label "新建 · N" :ref 'tanks-new-map :variant 'ghost :on-press (lambda () (etaf-tanks--editor-new ui)))
+      (etaf-button :label "新建 · n" :ref 'tanks-new-map :variant 'ghost :on-press (lambda () (etaf-tanks--editor-new ui)))
       (etaf-button :label "导入" :ref 'tanks-import :variant 'ghost :on-press (lambda () (etaf-tanks--editor-load ui))))
     (etaf-label :variant 'muted
                 :text (format "最高分 %d · 已通关 %d / 20"
@@ -428,9 +428,9 @@ when that allows larger blocks."
                               (nth index (plist-get (etaf-value tally) :points))))
     (etaf-label :text (format "总分 %d" (or (plist-get (etaf-value tally) :score) 0)) :variant 'strong)
     (etaf-button :if (and (equal (etaf-value phase) "cleared") (etaf-tanks--campaign-p ui))
-                 :label (format "第 %d 关 · N" (1+ (etaf-value stage))) :ref 'tanks-next
+                 :label (format "第 %d 关 · n" (1+ (etaf-value stage))) :ref 'tanks-next
                  :on-press (lambda () (etaf-tanks--advance ui)))
-    (etaf-button :label (if (equal (etaf-value phase) "cleared") "再打一次 · R" "重新挑战 · R") :ref 'tanks-retry
+    (etaf-button :label (if (equal (etaf-value phase) "cleared") "再打一次 · r" "重新挑战 · r") :ref 'tanks-retry
                  :variant (if (and (equal (etaf-value phase) "cleared") (etaf-tanks--campaign-p ui)) 'ghost 'primary)
                  :on-press (lambda () (etaf-tanks--retry ui))))))
 
@@ -447,7 +447,7 @@ COMPACT arranges the essentials in three rows under the board."
                                   (and (eq t (plist-get summary :fortify)) "基地加固")
                                   (and (plist-get summary :bonus)
                                        (concat "奖励：" (alist-get (plist-get summary :bonus) etaf-tanks--bonus-names nil nil #'equal))))))
-         (pause-label (if (eq t (etaf-value paused)) "继续 · P" "暂停 · P")))
+         (pause-label (if (eq t (etaf-value paused)) "继续 · p" "暂停 · p")))
     (if compact
         (etaf-view
          (column :ref 'tanks-hud :width 'stretch
@@ -458,9 +458,9 @@ COMPACT arranges the essentials in three rows under the board."
            (row :item-gap '(ch 1)
              (etaf-button :if (not ended) :label pause-label :ref 'tanks-pause :on-press (lambda () (etaf-tanks--toggle-pause ui)))
              (etaf-button :if (and ended (equal (etaf-value phase) "cleared") (etaf-tanks--campaign-p ui))
-                          :label "下一关 · N" :ref 'tanks-next :on-press (lambda () (etaf-tanks--advance ui)))
-             (etaf-button :label "重开 · R" :ref 'tanks-retry :variant 'ghost :on-press (lambda () (etaf-tanks--retry ui)))
-             (etaf-button :label "返回 · M" :ref 'tanks-leave :variant 'ghost :on-press (lambda () (etaf-tanks--leave-battle ui)))
+                          :label "下一关 · n" :ref 'tanks-next :on-press (lambda () (etaf-tanks--advance ui)))
+             (etaf-button :label "重开 · r" :ref 'tanks-retry :variant 'ghost :on-press (lambda () (etaf-tanks--retry ui)))
+             (etaf-button :label "返回 · m" :ref 'tanks-leave :variant 'ghost :on-press (lambda () (etaf-tanks--leave-battle ui)))
              (etaf-label :text (string-join effects " · ") :variant 'muted))
            (etaf-label :text (if event (concat (plist-get event :title) "：" (plist-get event :detail)) " ") :variant 'muted)))
       (etaf-view
@@ -486,17 +486,17 @@ COMPACT arranges the essentials in three rows under the board."
          (grid :grid-template-columns '((fr 1) (fr 1)) :gap '((lh 0) (ch 1)) :width 'stretch
            (etaf-button :label pause-label :ref 'tanks-pause :variant 'secondary :disabled ended
                         :on-press (lambda () (etaf-tanks--toggle-pause ui)))
-           (etaf-button :label "重开 · R" :ref 'tanks-restart :variant 'ghost :disabled ended
+           (etaf-button :label "重开 · r" :ref 'tanks-restart :variant 'ghost :disabled ended
                         :on-press (lambda () (etaf-tanks--retry ui)))
            (etaf-button :label "存档 · C-s" :ref 'tanks-save :variant 'ghost :disabled ended
                         :on-press (lambda () (etaf-tanks--snapshot ui "save")))
            (etaf-button :label "读档 · C-o" :ref 'tanks-load :variant 'ghost
                         :on-press (lambda () (etaf-tanks--snapshot ui "load")))
-           (etaf-button :label (if (eq (plist-get (etaf-value (etaf-tanks--ui-origin ui)) :kind) 'draft) "回编辑 · M" "菜单 · M")
+           (etaf-button :label (if (eq (plist-get (etaf-value (etaf-tanks--ui-origin ui)) :kind) 'draft) "回编辑 · m" "菜单 · m")
                         :ref 'tanks-leave :variant 'ghost :on-press (lambda () (etaf-tanks--leave-battle ui))))
          (column :ref 'tanks-event
            (etaf-tag :if event :text (or (plist-get event :title) "") :variant (intern (or (plist-get event :kind) "info")))
-           (etaf-label :text (or (plist-get event :detail) "方向键驾驶，F 开火。") :variant 'muted :wrap-mode 'word)))))))
+           (etaf-label :text (or (plist-get event :detail) "方向键驾驶，f 开火。") :variant 'muted :wrap-mode 'word)))))))
 
 ;;; Dialogs
 
@@ -835,10 +835,10 @@ GRAPHIC shows native frames from a private directory the instance owns."
              (etaf-label :text "坦克大战" :variant 'strong)
              (etaf-label :text (pcase current ('menu "选择关卡") ('editor "地图编辑") ('battle "战斗") (_ "")) :variant 'muted))
            (row :item-gap '(ch 1)
-             (etaf-button :label "设置 · S" :ref 'tanks-settings-open :variant 'ghost
+             (etaf-button :label "设置 · s" :ref 'tanks-settings-open :variant 'ghost
                           :on-press (lambda () (etaf-tanks--pause-for-input session)
                                       (setf (etaf-value (etaf-tanks--ui-settings-open ui)) t)))
-             (etaf-button :label (if (eq (etaf-value appearance) 'dark) "浅色 · T" "深色 · T") :ref 'tanks-theme :variant 'ghost
+             (etaf-button :label (if (eq (etaf-value appearance) 'dark) "浅色 · t" "深色 · t") :ref 'tanks-theme :variant 'ghost
                           :on-press (lambda () (setf (etaf-value appearance) (if (eq (etaf-value appearance) 'dark) 'light 'dark))))
              (etaf-button :label "说明 · F1" :ref 'tanks-help :variant 'ghost
                           :on-press #'etaf-help)))

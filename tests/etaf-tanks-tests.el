@@ -295,7 +295,7 @@ battle's published play phase from passing for the new one."
       (etaf-tanks-test--wait session (lambda () (> (nth 3 (etaf-tanks-test--actor session)) (nth 3 start)))))
     (etaf-tanks-test--keys session "p")
     (etaf-tanks-test--wait session (lambda () (eq t (etaf-tanks-test--view session :paused))))
-    (etaf-tanks-test--wait session (lambda () (string-match-p "继续 · P" (etaf-tanks-test--text session))))
+    (etaf-tanks-test--wait session (lambda () (string-match-p "继续 · p" (etaf-tanks-test--text session))))
     ;; A paused battle is left without confirmation.
     (etaf-tanks-test--keys session "m")
     (etaf-tanks-test--wait session (etaf-tanks-test--phase-p session "menu"))))
