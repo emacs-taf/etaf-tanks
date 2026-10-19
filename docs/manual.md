@@ -7,7 +7,7 @@ map editor, settings, dialogs and file prompts. Requiring GameKit never loads
 or launches this game.
 
 ```elisp
-(add-to-list 'load-path "/path/to/etaf-games/etaf-tanks")
+(add-to-list 'load-path "/path/to/emacs-taf/etaf-tanks")
 (require 'etaf-tanks)
 (etaf-tanks-open)
 ```
