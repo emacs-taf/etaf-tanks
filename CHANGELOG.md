@@ -1,6 +1,13 @@
 # Changelog
 
-## [Unreleased]
+## [0.2.4] - 2026-10-20
+
+### Fixed
+
+- An embedded battle now renders one battle once in its host window and pauses
+  when keyboard focus leaves it.
+- Each keyboard shortcut is labelled with the key it actually uses.
+
 
 ### Added
 
