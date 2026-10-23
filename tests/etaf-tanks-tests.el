@@ -520,5 +520,57 @@ battle's published play phase from passing for the new one."
                   (setq p (next-single-property-change p 'display nil (point-max))))
                 (should (> images 0))))))))))
 
+(etaf-define-component etaf-tanks-test--appearance-host (&key appearance session)
+  "Host SESSION's battle inside an explicitly provided APPEARANCE."
+  :setup (etaf-appearance-provide appearance)
+  :render (etaf-tanks-view session))
+
+(defun etaf-tanks-test--surface-background ()
+  "Return the most common background colour painted in the current buffer."
+  (let ((counts (make-hash-table :test #'equal))
+        (end (point-max)))
+    (cl-loop for i from 1 below (min end 4000)
+             for face = (get-text-property i 'face)
+             for color = (and (consp face) (plist-get face :background))
+             when color
+             do (puthash color (1+ (gethash color counts 0)) counts))
+    (let ((best nil) (best-count 0))
+      (maphash (lambda (color count)
+                 (when (> count best-count)
+                   (setq best color best-count count)))
+               counts)
+      best)))
+
+(defun etaf-tanks-test--luminance (color)
+  "Return the relative luminance of COLOR."
+  (apply #'+ (cl-mapcar (lambda (weight channel) (* weight channel))
+                        '(0.2126 0.7152 0.0722)
+                        (color-name-to-rgb color))))
+
+(ert-deftest etaf-tanks-appearance-follows-the-host ()
+  "Switching the provided appearance repaints the battle surface.
+The battle used to read the frame mode once when it mounted, so the game kept
+its old palette after a theme switch while the desktop around it followed the
+new one."
+  (etaf-tanks-test--with-sessions (session)
+    (let* ((appearance (etaf-ref 'light))
+           (buffer (generate-new-buffer " *tanks-appearance*")))
+      (unwind-protect
+          (progn
+            (etaf-mount buffer
+                        (etaf-view (etaf-tanks-test--appearance-host
+                                    :appearance appearance :session session))
+                        '(:viewport-width 1000 :viewport-height 40))
+            (switch-to-buffer buffer)
+            (let ((light (etaf-tanks-test--surface-background)))
+              (should light)
+              (etaf-set-value appearance 'dark)
+              (let ((dark (etaf-tanks-test--surface-background)))
+                (should dark)
+                (should-not (equal light dark))
+                (should (< (etaf-tanks-test--luminance dark)
+                           (etaf-tanks-test--luminance light))))))
+        (kill-buffer buffer)))))
+
 (provide 'etaf-tanks-tests)
 ;;; etaf-tanks-tests.el ends here

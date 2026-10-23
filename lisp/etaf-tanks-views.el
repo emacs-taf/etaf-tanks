@@ -35,7 +35,8 @@
 
 (cl-defstruct (etaf-tanks--ui (:constructor etaf-tanks--ui-make) (:copier nil))
   "Presentation state of one tank battle; slots hold reactive refs."
-  session metrics directory appearance settings difficulty catalog tab selection progress origin
+  session metrics directory appearance appearance-override settings difficulty catalog tab selection
+  progress origin
   draft cursor brush brush-size pen history dirty settings-open)
 
 ;;; Catalog and selection
@@ -507,7 +508,8 @@ COMPACT arranges the essentials in three rows under the board."
 (etaf-define-component etaf-tanks--settings-dialog (&key ui)
   "Adjust speeds, input timing, frame rate, appearance and board size live."
   :bindings ((settings (etaf-tanks--ui-settings ui)) (open (etaf-tanks--ui-settings-open ui))
-             (appearance (etaf-tanks--ui-appearance ui)))
+             (appearance (etaf-tanks--ui-appearance ui))
+             (appearance-override (etaf-tanks--ui-appearance-override ui)))
   :view
   (etaf-dialog :open open :title "设置" :width '(ch 56) :compact t :close-label nil
                :on-close (lambda () (setf (etaf-value open) nil))
@@ -536,7 +538,11 @@ COMPACT arranges the essentials in three rows under the board."
                         :on-change (lambda (value) (etaf-tanks--set-setting ui :frame-rate value))))
       (column
         (etaf-label :text "外观" :variant 'strong)
-        (etaf-segmented :options '((light . "浅色") (dark . "深色")) :bind appearance))
+        (etaf-segmented :options '((light . "浅色") (dark . "深色"))
+                        :value (etaf-value appearance)
+                        :on-change (lambda (value)
+                                     (etaf-batch
+                                       (setf (etaf-value appearance-override) value)))))
       (expr (when (plist-get (etaf-tanks--ui-metrics ui) :graphic)
               (etaf-view
                (column
@@ -568,8 +574,11 @@ COMPACT arranges the essentials in three rows under the board."
          (common (list (list "s" (lambda () (etaf-tanks--pause-for-input session)
                                     (setf (etaf-value (etaf-tanks--ui-settings-open ui)) t))
                              "设置")
-                       (list "t" (lambda () (setf (etaf-value (etaf-tanks--ui-appearance ui))
-                                                  (if (eq (etaf-value (etaf-tanks--ui-appearance ui)) 'dark) 'light 'dark)))
+                       (list "t" (lambda ()
+                                   (etaf-batch
+                                     (setf (etaf-value (etaf-tanks--ui-appearance-override ui))
+                                           (if (eq (etaf-value (etaf-tanks--ui-appearance ui)) 'dark)
+                                               'light 'dark))))
                              "亮暗主题")
                        (list "<f1>" #'etaf-help "规则与按键")
                        (list "q" (lambda () (etaf-tanks-close session)) "退出"))))
@@ -649,13 +658,14 @@ GRAPHIC shows native frames from a private directory the instance owns."
   :bindings ((app-ref (etaf-local-ref 'application))
              (metrics (etaf-computed (lambda () (etaf-tanks--metrics graphic)) :test #'equal))
              (directory (and graphic (make-temp-file "etaf-tanks-" t)))
-             (appearance (etaf-ref (if (eq etaf-tanks-appearance 'auto)
-                                       (if (eq (frame-parameter nil 'background-mode) 'dark) 'dark 'light)
-                                     etaf-tanks-appearance)))
+             (appearance-override (etaf-ref (unless (eq etaf-tanks-appearance 'auto)
+                                               etaf-tanks-appearance)))
+             (appearance (etaf-appearance-mode appearance-override))
              (builtin (etaf-tanks--builtin-stages))
              (progress (etaf-ref (etaf-tanks--progress-read)))
              (ui (etaf-tanks--ui-make
-                  :session session :metrics (etaf-value metrics) :directory directory :appearance appearance
+                  :session session :metrics (etaf-value metrics) :directory directory
+                  :appearance appearance :appearance-override appearance-override
                   :settings (etaf-ref (etaf-tanks--default-settings))
                   :difficulty (etaf-ref etaf-tanks-difficulty)
                   :catalog (etaf-ref (list :builtin builtin :custom (etaf-tanks--custom-maps)))
@@ -839,7 +849,10 @@ GRAPHIC shows native frames from a private directory the instance owns."
                           :on-press (lambda () (etaf-tanks--pause-for-input session)
                                       (setf (etaf-value (etaf-tanks--ui-settings-open ui)) t)))
              (etaf-button :label (if (eq (etaf-value appearance) 'dark) "浅色 · t" "深色 · t") :ref 'tanks-theme :variant 'ghost
-                          :on-press (lambda () (setf (etaf-value appearance) (if (eq (etaf-value appearance) 'dark) 'light 'dark))))
+                          :on-press (lambda ()
+                                      (etaf-batch
+                                        (setf (etaf-value appearance-override)
+                                              (if (eq (etaf-value appearance) 'dark) 'light 'dark)))))
              (etaf-button :label "说明 · F1" :ref 'tanks-help :variant 'ghost
                           :on-press #'etaf-help)))
          (expr (if stacked
