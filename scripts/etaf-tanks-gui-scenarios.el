@@ -175,6 +175,16 @@ restored after success or failure.  Confirmations are answered with y under
               (key "pause-final" "p" (lambda () (eq t (view :paused))))
               (key "leave-final" "m" (lambda () (equal (phase) "menu")))
               (key "editor" "e" (lambda () (equal (phase) "edit")) t)
+              ;; Shift with an arrow paints while it is held: one held key draws.
+              (key "shift-draw" "<right> <right> <right> <right> S-<right> S-<down>"
+                   (lambda ()
+                     (let ((cursor (view :editor)))
+                       (and (eql (plist-get cursor :x) 5) (eql (plist-get cursor :y) 1)
+                            (string-match-p "地图编辑 · 未保存" (text))))) t)
+              (key "editor-home" "<left> <left> <left> <left> <left> <up>"
+                   (lambda ()
+                     (let ((cursor (view :editor)))
+                       (and (eql (plist-get cursor :x) 0) (eql (plist-get cursor :y) 0)))))
               (key "locate-paint" "<right> <right> <down> 3"
                    (lambda () (let ((cursor (view :editor)))
                                 (and (eql (plist-get cursor :x) 2) (eql (plist-get cursor :y) 1)))))

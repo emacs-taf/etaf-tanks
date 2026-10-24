@@ -256,8 +256,10 @@ DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
                                           (etaf-value (etaf-tanks--ui-brush-size ui)))))
     (if (stringp result) (message "坦克大战：%s" result) (etaf-tanks--editor-change ui result))))
 
-(defun etaf-tanks--editor-move (ui direction)
-  "Move UI's cursor toward DIRECTION and paint while the pen is down."
+(defun etaf-tanks--editor-move (ui direction &optional paint)
+  "Move UI's cursor toward DIRECTION and paint while the pen is down.
+PAINT paints the step regardless of the pen, which is how Shift with an
+arrow key draws continuously while it is held."
   (if (etaf-value (etaf-tanks--ui-settings-open ui))
       'release
     (let* ((cursor (etaf-value (etaf-tanks--ui-cursor ui)))
@@ -265,7 +267,9 @@ DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
            (x (min (1- (car size)) (max 0 (+ (car cursor) (pcase direction ('left -1) ('right 1) (_ 0))))))
            (y (min (1- (cadr size)) (max 0 (+ (cdr cursor) (pcase direction ('up -1) ('down 1) (_ 0)))))))
       (setf (etaf-value (etaf-tanks--ui-cursor ui)) (cons x y))
-      (if (etaf-value (etaf-tanks--ui-pen ui)) (etaf-tanks--editor-paint ui) (etaf-tanks--editor-sync ui))
+      (if (or paint (etaf-value (etaf-tanks--ui-pen ui)))
+          (etaf-tanks--editor-paint ui)
+        (etaf-tanks--editor-sync ui))
       'handled)))
 
 (defun etaf-tanks--editor-brush (ui brush)
@@ -603,7 +607,11 @@ COMPACT arranges the essentials in three rows under the board."
                    (list (nth 2 brush) (lambda () (etaf-tanks--editor-brush ui (car brush)))
                          (concat "画笔：" (cadr brush))))
                  etaf-tanks--brushes)
-         (list (list "f" (lambda () (etaf-tanks--editor-paint ui)) "绘制")
+         (list (list "f" (lambda () (etaf-tanks--editor-paint ui)) "原地绘制")
+               (list "S-<left>" (lambda () (etaf-tanks--editor-move ui 'left t)) "向左连画")
+               (list "S-<right>" (lambda () (etaf-tanks--editor-move ui 'right t)) "向右连画")
+               (list "S-<up>" (lambda () (etaf-tanks--editor-move ui 'up t)) "向上连画")
+               (list "S-<down>" (lambda () (etaf-tanks--editor-move ui 'down t)) "向下连画")
                (list "d" (lambda () (setf (etaf-value (etaf-tanks--ui-pen ui)) (not (etaf-value (etaf-tanks--ui-pen ui))))
                            (when (etaf-value (etaf-tanks--ui-pen ui)) (etaf-tanks--editor-paint ui)))
                      "连续绘制")

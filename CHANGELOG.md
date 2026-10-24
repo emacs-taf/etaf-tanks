@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.8] - 2026-10-25
+
+### Added
+
+- The map editor paints while `Shift` and an arrow key are held, so one held
+  key draws a stroke along the cursor's path instead of pressing `F` again at
+  every step. A plain arrow still only moves the cursor.
+
 ## [0.2.4] - 2026-10-20
 
 ### Fixed

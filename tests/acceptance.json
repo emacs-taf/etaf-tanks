@@ -71,6 +71,11 @@
    "purpose": "The game metadata and visible title identify 坦克大战; the stage select starts a campaign that documented keys drive, aim, fire, pause and leave."
   },
   {
+   "name": "etaf-tanks-editor-shift-arrow-draws-a-stroke",
+   "file": "tests/etaf-tanks-tests.el",
+   "purpose": "Holding Shift with an arrow key paints every step of the move while a plain arrow only moves, so one held key draws a stroke in the editor."
+  },
+  {
    "name": "etaf-tanks-editor-paints-saves-and-test-plays",
    "file": "tests/etaf-tanks-tests.el",
    "purpose": "The editor exposes key guidance, button and keyboard painting, undo and continuous-mode state, then saves a custom map used by test play and the catalog."

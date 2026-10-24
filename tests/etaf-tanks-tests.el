@@ -428,6 +428,29 @@ battle's published play phase from passing for the new one."
           (should (equal data snapshot)))
         (etaf-help-close runtime)))))
 
+(ert-deftest etaf-tanks-editor-shift-arrow-draws-a-stroke ()
+  "Shift with an arrow paints every step, while a plain arrow only moves."
+  (etaf-tanks-test--with-sessions (session)
+    (etaf-tanks-test--keys session "e")
+    (etaf-tanks-test--wait session (etaf-tanks-test--phase-p session "edit"))
+    (etaf-tanks-test--keys session "<right> <right> <right> <right> 3")
+    (etaf-tanks-test--keys session "S-<right> S-<right> S-<down>")
+    (etaf-tanks-test--wait
+     session (lambda ()
+               (let ((cursor (etaf-tanks-test--view session :editor)))
+                 (and (eql (plist-get cursor :x) 6) (eql (plist-get cursor :y) 1)))))
+    (should (string-match-p "地图编辑 · 未保存" (etaf-tanks-test--text session)))
+    ;; A plain arrow still moves alone: column 7 stays empty terrain.
+    (etaf-tanks-test--keys session "<right>")
+    (etaf-tanks-test--wait
+     session (lambda () (eql 7 (plist-get (etaf-tanks-test--view session :editor) :x))))
+    (etaf-tanks-test--keys session "C-s RET")
+    (let* ((file (expand-file-name "前哨-改.txt" etaf-tanks-map-directory))
+           (text (and (file-exists-p file)
+                      (with-temp-buffer (insert-file-contents file) (buffer-string)))))
+      (should (string-match-p "^map:\nEE\\.\\.\\.@@" text))
+      (should (string-match-p "^map:\n[^\n]*\nEE\\.\\.\\.\\.@\\." text)))))
+
 (ert-deftest etaf-tanks-editor-paints-saves-and-test-plays ()
   "Editing a stage saves a custom map that test play and the catalog use."
   (etaf-tanks-test--with-sessions (session)
@@ -436,9 +459,11 @@ battle's published play phase from passing for the new one."
     (let* ((runtime (etaf-runtime-for-buffer (etaf-gamekit-buffer session)))
            (text (etaf-tanks-test--text session))
            (has-movement-hint (string-match-p "方向键移动黄色框" text))
-           (has-paint-hint (string-match-p "1–9 换画笔，再按 F 绘制" text)))
+           (has-paint-hint (string-match-p "1–9 换画笔，F 原地绘制" text))
+           (has-draw-hint (string-match-p "按住 Shift 再按方向键边画" text)))
       (should has-movement-hint)
       (should has-paint-hint)
+      (should has-draw-hint)
       (etaf-tanks-test--keys session "<right> <right> <down> 3")
       (etaf-dispatch-event runtime 'tanks-map-paint 'press)
       (etaf-dispatch-event runtime 'tanks-map-undo 'press)

@@ -136,7 +136,8 @@ sources; the callbacks own every change."
                                   (if (etaf-value pen) " · 连续" ""))
                     :variant 'muted))
       (etaf-label :text "方向键移动黄色框")
-      (etaf-label :text "1–9 换画笔，再按 F 绘制")
+      (etaf-label :text "按住 Shift 再按方向键边画")
+      (etaf-label :text "1–9 换画笔，F 原地绘制")
       (grid :grid-template-columns '((fr 1) (fr 1) (fr 1)) :gap '((lh 0) (ch 1)) :width 'stretch
         (etaf-button :for (entry etaf-tanks--brushes) :key (car entry)
                      :ref (intern (format "tanks-brush-%s" (nth 2 entry)))
