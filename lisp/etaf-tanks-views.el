@@ -215,7 +215,7 @@ DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
   (setf (etaf-value (etaf-tanks--ui-draft ui)) draft
         (etaf-value (etaf-tanks--ui-history ui)) nil
         (etaf-value (etaf-tanks--ui-dirty ui)) nil
-        (etaf-value (etaf-tanks--ui-pen ui)) nil
+        (etaf-value (etaf-tanks--ui-pen ui)) t
         (etaf-value (etaf-tanks--ui-cursor ui)) (cons 0 0))
   (etaf-tanks--editor-sync ui))
 
@@ -256,10 +256,10 @@ DISPLAY is (THEME DEVICE-BLOCK DEVICE-LINE) for the current board."
                                           (etaf-value (etaf-tanks--ui-brush-size ui)))))
     (if (stringp result) (message "坦克大战：%s" result) (etaf-tanks--editor-change ui result))))
 
-(defun etaf-tanks--editor-move (ui direction &optional paint)
-  "Move UI's cursor toward DIRECTION and paint while the pen is down.
-PAINT paints the step regardless of the pen, which is how Shift with an
-arrow key draws continuously while it is held."
+(defun etaf-tanks--editor-move (ui direction &optional move-only)
+  "Move UI's cursor toward DIRECTION and paint unless MOVE-ONLY.
+Painting is the default while the pen is on, so a held arrow draws a stroke;
+MOVE-ONLY steps the cursor without changing the map."
   (if (etaf-value (etaf-tanks--ui-settings-open ui))
       'release
     (let* ((cursor (etaf-value (etaf-tanks--ui-cursor ui)))
@@ -267,7 +267,7 @@ arrow key draws continuously while it is held."
            (x (min (1- (car size)) (max 0 (+ (car cursor) (pcase direction ('left -1) ('right 1) (_ 0))))))
            (y (min (1- (cadr size)) (max 0 (+ (cdr cursor) (pcase direction ('up -1) ('down 1) (_ 0)))))))
       (setf (etaf-value (etaf-tanks--ui-cursor ui)) (cons x y))
-      (if (or paint (etaf-value (etaf-tanks--ui-pen ui)))
+      (if (and (etaf-value (etaf-tanks--ui-pen ui)) (not move-only))
           (etaf-tanks--editor-paint ui)
         (etaf-tanks--editor-sync ui))
       'handled)))
@@ -608,13 +608,12 @@ COMPACT arranges the essentials in three rows under the board."
                          (concat "画笔：" (cadr brush))))
                  etaf-tanks--brushes)
          (list (list "f" (lambda () (etaf-tanks--editor-paint ui)) "原地绘制")
-               (list "S-<left>" (lambda () (etaf-tanks--editor-move ui 'left t)) "向左连画")
-               (list "S-<right>" (lambda () (etaf-tanks--editor-move ui 'right t)) "向右连画")
-               (list "S-<up>" (lambda () (etaf-tanks--editor-move ui 'up t)) "向上连画")
-               (list "S-<down>" (lambda () (etaf-tanks--editor-move ui 'down t)) "向下连画")
-               (list "d" (lambda () (setf (etaf-value (etaf-tanks--ui-pen ui)) (not (etaf-value (etaf-tanks--ui-pen ui))))
-                           (when (etaf-value (etaf-tanks--ui-pen ui)) (etaf-tanks--editor-paint ui)))
-                     "连续绘制")
+               (list "S-<left>" (lambda () (etaf-tanks--editor-move ui 'left t)) "只左移")
+               (list "S-<right>" (lambda () (etaf-tanks--editor-move ui 'right t)) "只右移")
+               (list "S-<up>" (lambda () (etaf-tanks--editor-move ui 'up t)) "只上移")
+               (list "S-<down>" (lambda () (etaf-tanks--editor-move ui 'down t)) "只下移")
+               (list "d" (lambda () (setf (etaf-value (etaf-tanks--ui-pen ui)) (not (etaf-value (etaf-tanks--ui-pen ui)))))
+                     "移动时绘制")
                (list "b" (lambda () (setf (etaf-value (etaf-tanks--ui-brush-size ui)) (- 3 (etaf-value (etaf-tanks--ui-brush-size ui))))
                            (etaf-tanks--editor-sync ui))
                      "笔刷大小")
@@ -687,7 +686,7 @@ GRAPHIC shows native frames from a private directory the instance owns."
                                                   :key))
                   :progress progress :origin (etaf-ref nil)
                   :draft (etaf-ref (list :name "新地图" :counts (list 20 6 3 1) :rows (etaf-tanks--blank-rows 40 30)))
-                  :cursor (etaf-ref (cons 0 0)) :brush (etaf-ref ?#) :brush-size (etaf-ref 1) :pen (etaf-ref nil)
+                  :cursor (etaf-ref (cons 0 0)) :brush (etaf-ref ?#) :brush-size (etaf-ref 1) :pen (etaf-ref t)
                   :history (etaf-ref nil) :dirty (etaf-ref nil) :settings-open (etaf-ref nil)))
              (theme (etaf-computed (lambda () (if (eq (etaf-value appearance) 'dark)
                                                   etaf-tanks--dark-theme etaf-tanks--light-theme))

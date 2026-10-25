@@ -175,17 +175,17 @@ restored after success or failure.  Confirmations are answered with y under
               (key "pause-final" "p" (lambda () (eq t (view :paused))))
               (key "leave-final" "m" (lambda () (equal (phase) "menu")))
               (key "editor" "e" (lambda () (equal (phase) "edit")) t)
-              ;; Shift with an arrow paints while it is held: one held key draws.
-              (key "shift-draw" "<right> <right> <right> <right> S-<right> S-<down>"
+              ;; Arrows draw while they are held; Shift with an arrow only moves.
+              (key "arrow-draw" "S-<right> S-<right> S-<right> S-<right> <right> <right>"
                    (lambda ()
                      (let ((cursor (view :editor)))
-                       (and (eql (plist-get cursor :x) 5) (eql (plist-get cursor :y) 1)
+                       (and (eql (plist-get cursor :x) 6) (eql (plist-get cursor :y) 0)
                             (string-match-p "地图编辑 · 未保存" (text))))) t)
-              (key "editor-home" "<left> <left> <left> <left> <left> <up>"
+              (key "editor-home" "S-<left> S-<left> S-<left> S-<left> S-<left> S-<left>"
                    (lambda ()
                      (let ((cursor (view :editor)))
                        (and (eql (plist-get cursor :x) 0) (eql (plist-get cursor :y) 0)))))
-              (key "locate-paint" "<right> <right> <down> 3"
+              (key "locate-paint" "S-<right> S-<right> S-<down> 3"
                    (lambda () (let ((cursor (view :editor)))
                                 (and (eql (plist-get cursor :x) 2) (eql (plist-get cursor :y) 1)))))
               (action "paint-button"
@@ -201,10 +201,10 @@ restored after success or failure.  Confirmations are answered with y under
               (action "paint-key"
                       (lambda () (setq frame-before (plist-get (view :frame) :id)) (keys "f"))
                       (lambda () (> (plist-get (view :frame) :id) frame-before)) t)
-              (action "continuous-on" (lambda () (etaf-dispatch-event runtime 'tanks-pen 'press))
-                      (lambda () (string-match-p "连续：开" (text))) t)
-              (action "continuous-off" (lambda () (etaf-dispatch-event runtime 'tanks-pen 'press))
-                      (lambda () (string-match-p "连续：关" (text))) t)
+              (action "pen-off" (lambda () (etaf-dispatch-event runtime 'tanks-pen 'press))
+                      (lambda () (string-match-p "绘制：关" (text))) t)
+              (action "pen-on" (lambda () (etaf-dispatch-event runtime 'tanks-pen 'press))
+                      (lambda () (string-match-p "绘制：开" (text))) t)
               (key "discard-edit" "m y" (lambda () (equal (phase) "menu")))
               (action "stage-tally" #'fight (lambda () (equal (phase) "cleared")) t)
               (action "defeat"

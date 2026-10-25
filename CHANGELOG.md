@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.9] - 2026-10-25
+
+### Changed
+
+- The map editor draws while an arrow key is held: painting is on by default,
+  so a held arrow draws a stroke instead of pressing `F` at every cell. Hold
+  `Shift` with an arrow to move without painting, and **绘制：开/关 · D** turns
+  the behaviour off and on.
+
 ## [0.2.8] - 2026-10-25
 
 ### Added

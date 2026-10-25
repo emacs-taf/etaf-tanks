@@ -120,12 +120,13 @@ enemy spawns `E`. Lines beginning with `;` are comments; files over 64 KiB are
 rejected. The menu preview reports a map's defects before it can be played.
 
 The right-hand painting tools show the editing keys without opening Help.
-Move the yellow cursor with the arrows, choose a brush with 1–9, then press
-`F` or click **绘制 · F** to paint. Choosing a brush alone does not paint.
-Hold `Shift` with an arrow key to paint every step of that move, so one held
-key draws a stroke; a plain arrow still only moves. **撤销 · U** undoes a
-change and is disabled when there is nothing to undo. The **连续：开/关 · D**
-button shows whether plain cursor movement also paints.
+Choose a brush with 1–9 and move the yellow cursor with the arrows: drawing is
+on by default, so every step paints the brush and a held arrow draws a stroke.
+Hold `Shift` with an arrow to move without painting, and press `F` or click
+**绘制 · F** to paint the current cell alone. Choosing a brush alone does not
+paint. **撤销 · U** undoes a change and is disabled when there is nothing to
+undo. The **绘制：开/关 · D** button turns painting on and off for plain cursor
+movement.
 
 The editor paints with 1×1 or 2×2 brushes, undoes strokes, edits the name and
 enemy counts, test-plays the draft (M returns to the editor) and saves into the

@@ -135,9 +135,9 @@ sources; the callbacks own every change."
                                     (format "%d×%d" (etaf-value brush-size) (etaf-value brush-size)))
                                   (if (etaf-value pen) " · 连续" ""))
                     :variant 'muted))
-      (etaf-label :text "方向键移动黄色框")
-      (etaf-label :text "按住 Shift 再按方向键边画")
-      (etaf-label :text "1–9 换画笔，F 原地绘制")
+      (etaf-label :text "方向键移动并绘制")
+      (etaf-label :text "Shift+方向键 只移动")
+      (etaf-label :text "1–9 换画笔，F 画一格")
       (grid :grid-template-columns '((fr 1) (fr 1) (fr 1)) :gap '((lh 0) (ch 1)) :width 'stretch
         (etaf-button :for (entry etaf-tanks--brushes) :key (car entry)
                      :ref (intern (format "tanks-brush-%s" (nth 2 entry)))
@@ -149,7 +149,7 @@ sources; the callbacks own every change."
         (etaf-button :label "撤销 · u" :ref 'tanks-map-undo :variant 'secondary
                      :disabled (not (etaf-value history)) :on-press on-undo)
         (etaf-button :label "笔刷大小 · b" :ref 'tanks-brush-size :variant 'ghost :on-press on-size)
-        (etaf-button :label (if (etaf-value pen) "连续：开 · d" "连续：关 · d") :ref 'tanks-pen
+        (etaf-button :label (if (etaf-value pen) "绘制：开 · d" "绘制：关 · d") :ref 'tanks-pen
                      :variant (if (etaf-value pen) 'secondary 'ghost) :on-press on-pen)))
     (etaf-alert :if (etaf-value map-error) :title "暂不可玩" :message (or (etaf-value map-error) "") :variant 'warning)
     (grid :grid-template-columns '((fr 1) (fr 1)) :gap '((lh 0) (ch 1)) :width 'stretch
