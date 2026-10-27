@@ -12,7 +12,8 @@ or launches this game.
 (etaf-tanks-open)
 ```
 
-Install ETAF, etaf-ui and GameKit, including its Godot runtime, before opening.
+Install ETAF, etaf-ui and GameKit before opening, then install the Godot runtime
+once with `M-x etaf-gamekit-install-godot`.
 The bundled project is `native/godot/`, resolved relative to this package's own
 entry. The [entry Commentary](../etaf-tanks.el) documents the supported Lisp API.
 

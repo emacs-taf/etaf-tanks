@@ -94,6 +94,11 @@
    "name": "etaf-tanks-appearance-follows-the-host",
    "file": "tests/etaf-tanks-tests.el",
    "purpose": "Switching the appearance a host provides repaints the battle surface in the new palette."
+  },
+  {
+   "name": "etaf-tanks-doctor-follows-the-configured-godot-runtime",
+   "file": "tests/etaf-tanks-tests.el",
+   "purpose": "The capability report follows the configured Godot program and names the install command when it is missing."
   }
  ]
 }

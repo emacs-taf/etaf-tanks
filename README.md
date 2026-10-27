@@ -38,7 +38,7 @@ artwork and stages are original.
 | --- | --- | --- |
 | Emacs 29.1 or newer | the ETAF runtime | `emacs --version` |
 | `ecss`, `ebox`, `etaf`, `etaf-ui` | the framework and catalog components | every root entry is on `load-path` |
-| `etaf-gamekit` and its Godot runtime | simulation host, game instance and state publication | `make -C etaf-gamekit engine` |
+| `etaf-gamekit` and its Godot runtime | simulation host, game instance and state publication | `M-x etaf-gamekit-install-godot` |
 | Python 3.9 or newer | GameKit's Godot setup script | `python3 --version` |
 
 ## Installation
@@ -52,6 +52,10 @@ git clone https://github.com/emacs-taf/etaf-gamekit.git
 git clone https://github.com/emacs-taf/etaf-tanks.git
 make -C etaf-gamekit engine
 ```
+
+Installed from the ETAF package archive, `M-x etaf-gamekit-install-godot`
+installs the same pinned runtime; `make -C etaf-gamekit engine` is the checkout
+equivalent.
 
 Add every provider root and this repository to `load-path`:
 

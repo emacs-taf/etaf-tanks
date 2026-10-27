@@ -606,5 +606,24 @@ new one."
                            (etaf-tanks-test--luminance light))))))
         (kill-buffer buffer)))))
 
+(ert-deftest etaf-tanks-doctor-follows-the-configured-godot-runtime ()
+  "The capability check reports the configured runtime, not a cache path."
+  (let* ((directory (make-temp-file "etaf-tanks-doctor" t))
+         (program (expand-file-name "godot" directory)))
+    (unwind-protect
+        (progn
+          (with-temp-file program
+            (insert "#!/bin/sh\n"))
+          (set-file-modes program #o755)
+          (let ((etaf-gamekit-godot-program program))
+            (let ((fact (car (plist-get (etaf-tanks-doctor) :required))))
+              (should (equal (car fact) "Godot runtime"))
+              (should (cadr fact))))
+          (let ((etaf-gamekit-godot-program (expand-file-name "absent" directory)))
+            (let ((fact (car (plist-get (etaf-tanks-doctor) :required))))
+              (should-not (cadr fact))
+              (should (string-match-p "etaf-gamekit-install-godot" (nth 2 fact))))))
+      (delete-directory directory t))))
+
 (provide 'etaf-tanks-tests)
 ;;; etaf-tanks-tests.el ends here

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.10] - 2026-10-27
+
+### Fixed
+
+- `etaf-tanks-doctor` reports the runtime that `etaf-gamekit-godot-program`
+  actually names, so an installed Godot no longer shows as missing in the
+  installer's Runtime column, and the remedy names
+  `M-x etaf-gamekit-install-godot`.
+
 ## [0.2.9] - 2026-10-25
 
 ### Changed

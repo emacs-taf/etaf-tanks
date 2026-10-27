@@ -2,8 +2,8 @@
 ;;; etaf-tanks.el --- A Battle City-style tank game for Emacs
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
-;; Version: 0.2.9
-;; Package-Requires: ((emacs "29.1") (etaf "0.3.0") (etaf-gamekit "0.1.0") (etaf-ui "0.1.0"))
+;; Version: 0.2.10
+;; Package-Requires: ((emacs "29.1") (etaf "0.3.0") (etaf-gamekit "0.2.0") (etaf-ui "0.1.0"))
 ;;; Commentary:
 ;; This game follows the rules of the 1985 arcade tank battle: defend the
 ;; eagle base at the bottom of the field, destroy every enemy tank of the
@@ -91,7 +91,8 @@
 ;; Return capability facts for playing tanks.  The shape matches
 ;; `etaf-install-doctor': the simulation host and its rules come from
 ;; `etaf-gamekit', which is an ordinary package dependency, while the Godot
-;; runtime is a local build that must be detected before a battle can start.
+;; runtime must be installed before a battle can start.  The check follows
+;; `etaf-gamekit-godot-program', and its remedy installs that runtime.
 ;;
 ;; Function: etaf-tanks-open ()
 ;;;###autoload (autoload 'etaf-tanks-open "etaf-tanks" nil t)
@@ -151,8 +152,9 @@ The shape matches `etaf-install-doctor': :required and :optional lists of
 (LABEL AVAILABLE REMEDY).  Nothing is installed or changed."
   (list :required
         (list (list "Godot runtime"
-                    (file-directory-p (expand-file-name "~/.cache/emacs-taf/game-engines/godot"))
-                    "Build it once with: make -C etaf-gamekit engine"))
+                    (and (stringp etaf-gamekit-godot-program)
+                         (executable-find etaf-gamekit-godot-program))
+                    "Install it once with: M-x etaf-gamekit-install-godot"))
         :optional nil))
 (defconst etaf-tanks--directory
   (file-name-directory (or load-file-name buffer-file-name)))
